@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>cubik.one — Модульные кубы</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="nav" id="nav">
+    <div class="nav-inner">
+        <a href="#" class="nav-logo">
+            <img src="assets/images/brand/logo.jpg" alt="cubik.one" class="nav-logo-img">
+        </a>
+        <div class="nav-links">
+            <a href="#products">Продукты</a>
+            <a href="#faces">Грани</a>
+            <a href="#construction">Конструкции</a>
+            <a href="#material">Материал</a>
+            <a href="#" class="nav-buy">Купить</a>
+        </div>
+        <button class="nav-burger" id="navBurger" aria-label="Меню">
+            <span></span><span></span>
+        </button>
+    </div>
+</nav>
+
+<!-- Hero — 4 rotating 3D models + color picker -->
+<section class="hero" id="hero">
+    <div class="hero-content">
+        <h1 class="hero-title">cubik.one</h1>
+        <p class="hero-subtitle">Четыре куба. Пять граней. Бесконечные возможности.</p>
+        <div class="hero-canvas-wrap" id="heroCanvasWrap">
+            <canvas id="heroCanvas"></canvas>
+            <div class="hero-loader" id="heroLoader">Загрузка моделей…</div>
+        </div>
+        <div class="color-picker" id="colorPicker">
+            <button class="swatch active" data-color="#7D7F7D" data-name="Серый"><span style="background:#7D7F7D"></span></button>
+            <button class="swatch" data-color="#E1B589" data-name="Бежевый"><span style="background:#E1B589"></span></button>
+            <button class="swatch" data-color="#0A6F3C" data-name="Зелёный"><span style="background:#0A6F3C"></span></button>
+            <button class="swatch" data-color="#F4F4F4" data-name="Белый"><span style="background:#F4F4F4;border:1px solid #d2d2d7"></span></button>
+            <button class="swatch" data-color="#0A0A0A" data-name="Чёрный"><span style="background:#0A0A0A"></span></button>
+        </div>
+        <p class="color-label" id="colorLabel">Серый</p>
+        <div class="hero-actions">
+            <a href="#products" class="btn-primary">Купить</a>
+            <a href="#faces" class="btn-link">Подробнее ›</a>
+        </div>
+    </div>
+</section>
+
+<!-- Faces -->
+<section class="section faces" id="faces">
+    <h2 class="section-title">Пять граней.<br>Безграничные идеи.</h2>
+    <div class="faces-grid">
+        <div class="face-card" data-anim>
+            <img src="assets/images/faces/bion/facet-izo.jpg" alt="Bion" class="face-img" loading="lazy">
+            <h3>Bion</h3>
+            <p>Решётчатая структура. Свет проходит. Воздух циркулирует.</p>
+        </div>
+        <div class="face-card" data-anim>
+            <img src="assets/images/faces/void/facet-izo.jpg" alt="Void" class="face-img" loading="lazy">
+            <h3>Void</h3>
+            <p>Открытая рамка. Полки. Ниши. Декор.</p>
+        </div>
+        <div class="face-card" data-anim>
+            <img src="assets/images/faces/zen/facet.jpg" alt="Zen" class="face-img" loading="lazy">
+            <h3>Zen</h3>
+            <p>Сплошная поверхность с рельефом. Приватность. Чистота линий.</p>
+        </div>
+        <div class="face-card" data-anim>
+            <img src="assets/images/faces/flora/facet.jpg" alt="Flora" class="face-img" loading="lazy">
+            <h3>Flora</h3>
+            <p>Встроенное кашпо. Природа — часть конструкции.</p>
+        </div>
+        <div class="face-card" data-anim>
+            <img src="assets/images/faces/zen2/facet.jpg" alt="Zen/2" class="face-img" loading="lazy">
+            <h3>Zen/2</h3>
+            <p>Узкая грань для вариативности решений.</p>
+        </div>
+    </div>
+</section>
+
+<!-- Assembly — 3D Bion.glb, грани сходятся в куб -->
+<section class="section assembly" id="assembly">
+    <h2 class="section-title">Из граней — в куб.</h2>
+    <p class="section-sub">Все грани взаимозаменяемы: собираются без помощи инструментов, защёлкиваются руками и позволяют воплотить любые дизайнерские и инженерные идеи.</p>
+    <div class="assembly-stage" id="assemblyStage">
+        <canvas id="assemblyCanvas" aria-label="Анимация сборки куба Bion"></canvas>
+        <p class="assembly-fallback" id="assemblyFallback" hidden>Не удалось загрузить assets/models/bion.glb — проверьте файл в папке assets/models.</p>
+    </div>
+    <div class="assembly-replay">
+        <button type="button" class="btn-primary" id="assemblyReplayBtn" disabled>Посмотреть сборку ещё раз</button>
+    </div>
+</section>
+
+<!-- Construction / Clips — 3D стенка 3×3 + клипсы -->
+<section class="section construction" id="construction">
+    <h2 class="section-title">Клипса.<br>Простое соединение.</h2>
+    <p class="section-sub">Защёлкните — и готово. Масштабируйте конструкцию до любого размера.</p>
+    <div class="construction-stage" id="constructionStage">
+        <canvas id="constructionCanvas" aria-label="Модульная стенка и клипсы"></canvas>
+        <p class="construction-fallback" id="constructionFallback" hidden>Не удалось загрузить модели стенки — проверьте void.obj, bion.obj, zen.obj и clips.obj в папке assets/models.</p>
+    </div>
+    <p class="section-sub construction-note">Клипсы многоразовые: вынимайте и ставьте снова с помощью пинцета, который идёт в комплекте — быстро и без лишних усилий. Те же кубы и те же клипсы складываются в другие объёмы и формы — экспериментируйте с масштабом, геометрией и назначением.</p>
+</section>
+
+<!-- Material -->
+<section class="section material" id="material">
+    <h2 class="section-title">Создан, чтобы<br>служить вечно.</h2>
+    <p class="section-sub">Современный премиальный полимерный композит — материал нового поколения для сада и интерьера.</p>
+    <div class="mat-grid">
+        <div class="mat-card" data-anim>
+            <span class="mat-stat">1,5 т</span>
+            <p>Выдерживает нагрузку до полутора тонн. Экстремальная прочность.</p>
+        </div>
+        <div class="mat-card" data-anim>
+            <span class="mat-stat">UV</span>
+            <p>Устойчив к ультрафиолету и любой погоде. Не выгорает.</p>
+        </div>
+        <div class="mat-card" data-anim>
+            <span class="mat-stat mat-stat-icon" role="img" aria-label="Полимерный композит">
+                <img src="assets/images/material/polymer.svg" alt="" width="56" height="56" decoding="async" />
+            </span>
+            <p>Современный премиальный полимерный композит: плотная структура, матовая тёплая поверхность, приятная на ощупь.</p>
+        </div>
+        <div class="mat-card" data-anim>
+            <span class="mat-stat">♻</span>
+            <p>Полностью перерабатываемый. Ноль отходов.</p>
+        </div>
+        <div class="mat-card" data-anim>
+            <span class="mat-stat mat-stat-icon" role="img" aria-label="Диапазон температур эксплуатации">
+                <img src="assets/images/material/temperature-range.png" alt="" width="56" height="56" decoding="async" />
+            </span>
+            <p>Эксплуатация при экстремальных температурах. От —25 до +50 °C.</p>
+        </div>
+    </div>
+</section>
+
+<!-- Products -->
+<section class="section products" id="products">
+    <h2 class="section-title">Выберите свой проект.</h2>
+    <p class="section-sub">Готовые решения. Для каждой идеи.</p>
+    <div class="products-grid">
+        <div class="product-card" data-anim>
+            <div class="prod-img-wrap">
+                <img src="assets/images/products/table-garden-set/main.jpeg" alt="Table Garden Set 1+2" class="prod-img prod-img-main" loading="lazy">
+                <img src="assets/images/products/table-garden-set/hover.jpg" alt="Table Garden Set 1+2 — вид 2" class="prod-img prod-img-hover" loading="lazy">
+            </div>
+            <h3 class="prod-name">Table Garden Set 1+2</h3>
+            <p class="prod-desc">Ступенчатый вертикальный сад — мини-сады на каждом уровне. Зелень и композиции в компактном формате.</p>
+            <p class="prod-price">от 55 €</p>
+            <a href="https://cubik.one/catalog/mini-gardens/mini-planter-set-20-cubiks/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Купить</a>
+        </div>
+        <div class="product-card" data-anim>
+            <div class="prod-img-wrap prod-img-dark">
+                <img src="assets/images/products/balcony-planter-set-2/main.png" alt="Balcony planter set #2" class="prod-img prod-img-main" loading="lazy">
+                <img src="assets/images/products/balcony-planter-set-2/hover.png" alt="Balcony planter set #2 — вид 2" class="prod-img prod-img-hover" loading="lazy">
+            </div>
+            <h3 class="prod-name">Balcony planter set #2</h3>
+            <p class="prod-desc">Компактные модульные кашпо для балкона. Яркие цветочные композиции.</p>
+            <p class="prod-price">от 120 €</p>
+            <a href="https://cubik.one/catalog/diy-kits/balcony-planter-set-2/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Купить</a>
+        </div>
+        <div class="product-card" data-anim>
+            <div class="prod-img-wrap">
+                <img src="assets/images/products/cat-castle/main.jpeg" alt="Cat Castle" class="prod-img prod-img-main" loading="lazy">
+                <img src="assets/images/products/cat-castle/hover.jpeg" alt="Cat Castle — вид 2" class="prod-img prod-img-hover" loading="lazy">
+            </div>
+            <h3 class="prod-name">Cat Castle</h3>
+            <p class="prod-desc">Модульный кошачий домик с лежанкой. Уют, который можно перестраивать.</p>
+            <p class="prod-price">от 200 €</p>
+            <a href="https://cubik.one/catalog/playrooms/cat-house-1/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Купить</a>
+        </div>
+        <div class="product-card" data-anim>
+            <div class="prod-img-wrap">
+                <img src="assets/images/products/modular-balcony-garden/main.jpg" alt="Modular balcony garden system" class="prod-img prod-img-main" loading="lazy">
+                <img src="assets/images/products/modular-balcony-garden/hover.jpg" alt="Modular balcony garden system — вид 2" class="prod-img prod-img-hover" loading="lazy">
+            </div>
+            <h3 class="prod-name">Modular balcony garden system</h3>
+            <p class="prod-desc">Модульная система для балконного сада. Масштабируемая стеновая конструкция для террасы и сада.</p>
+            <p class="prod-price">от 260 €</p>
+            <a href="https://cubik.one/catalog/works-by-our-users/modular-balcony-garden-system/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Купить</a>
+        </div>
+    </div>
+    <div class="products-cta">
+        <a href="https://cubik.one/catalog/" class="btn-primary" target="_blank" rel="noopener noreferrer">Перейти в магазин</a>
+    </div>
+</section>
+
+<!-- 3D Builder promo -->
+<section class="section builder-promo" id="builder">
+    <div class="builder-promo-inner">
+        <div class="builder-promo-text" data-anim>
+            <p class="builder-promo-lead">Создайте уникальную конструкцию, воспользовавшись нашим 3D-редактором.</p>
+            <a href="https://cubik.one/builder/" class="btn-primary" target="_blank" rel="noopener noreferrer">Перейти в редактор</a>
+        </div>
+        <div class="builder-promo-video-wrap" data-anim>
+            <video
+                class="builder-promo-video"
+                src="assets/media/video/builder-plug.mp4?v=2"
+                autoplay
+                muted
+                loop
+                playsinline
+                preload="auto"
+                aria-label="Демонстрация 3D-редактора cubik.one"
+            ></video>
+        </div>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+    <div class="footer-inner">
+        <div class="footer-links">
+            <a href="#">О нас</a>
+            <a href="#">Контакты</a>
+            <a href="#">Политика конфиденциальности</a>
+        </div>
+        <p class="footer-copy">© 2026 cubik.one. Все права защищены.</p>
+    </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.7/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.7/dist/ScrollTrigger.min.js"></script>
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"
+    }
+}
+</script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
