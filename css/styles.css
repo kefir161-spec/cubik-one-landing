@@ -1,10 +1,10 @@
 :root {
     --c-text: #1d1d1f;
     --c-text2: #86868b;
-    /* Мятный акцент (рамки свотчей, точки) */
+    /* Mint accent (swatch rings, dots) */
     --c-accent: #91b3aa;
     --c-accent-hover: #7a9e92;
-    /* CTA = насыщённый зелёный как 3-й свотч палитры (#0A6F3C), не #91b3aa */
+    /* CTA = saturated green like 3rd palette swatch (#0A6F3C), not #91b3aa */
     --c-btn: #0A6F3C;
     --c-btn-hover: #085530;
     --c-bg: #ffffff;
@@ -12,10 +12,10 @@
     --font: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
     --nav-h: 48px;
     --ease: cubic-bezier(.4, 0, .2, 1);
-    /* Единые отступы между секциями (сверху и снизу у каждого .section) */
+    /* Section vertical padding (top and bottom on each .section) */
     --section-pad-y: 120px;
     --section-pad-x: 22px;
-    /* Компактная полоса подвала, не как у контентных секций */
+    /* Compact footer band vs content sections */
     --footer-pad-y: 36px;
 }
 
@@ -58,7 +58,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     margin-top: 12px;
 }
 
-/* Buttons — плоский залив, без градиентов и полупрозрачности */
+/* Buttons — flat fill, no gradients or transparency */
 .btn-primary {
     display: inline-block;
     background-color: var(--c-btn);
@@ -334,7 +334,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 
 /* =============================================
-   Builder promo (текст + автовидео)
+   Builder promo (copy + autoplay video)
    ============================================= */
 .builder-promo {
     max-width: 1200px;
@@ -433,7 +433,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     height: 100%;
     touch-action: none;
 }
-/* display:flex ломает атрибут hidden — без :not([hidden]) текст всегда поверх canvas */
+/* display:flex breaks [hidden] — without :not([hidden]) text stays over canvas */
 .assembly-fallback[hidden] {
     display: none !important;
 }
@@ -463,7 +463,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 
 /* =============================================
-   Construction — Three.js стенка 3×3 + clips
+   Construction — Three.js 3×3 wall + clips
    ============================================= */
 .construction {
     text-align: center;

@@ -392,11 +392,11 @@ const CONS_WALL_ROT_FAST = CONS_WALL_ROT_NORMAL * 2.6;
 // Color Picker
 // =============================================
 const colorNames = {
-    '#7D7F7D': 'Серый',
-    '#E1B589': 'Бежевый',
-    '#0A6F3C': 'Зелёный',
-    '#F4F4F4': 'Белый',
-    '#0A0A0A': 'Чёрный',
+    '#7D7F7D': 'Gray',
+    '#E1B589': 'Beige',
+    '#0A6F3C': 'Green',
+    '#F4F4F4': 'White',
+    '#0A0A0A': 'Black',
 };
 
 document.querySelectorAll('.swatch').forEach(sw => {

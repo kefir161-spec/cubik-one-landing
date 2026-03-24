@@ -1,74 +1,74 @@
-# cubik.one — лендинг модульных кубов
+# cubik.one — modular cubes landing page
 
-Одностраничный промо-сайт для линейки модульных кубов **cubik.one**: продукты, грани, материал, интерактивные 3D-блоки и ссылка на каталог.
+A single-page promo site for the **cubik.one** modular cube line: products, faces, material, interactive 3D sections, and links to the catalog. **UI copy is in English.**
 
-**Живая демонстрация (GitHub Pages):** [https://kefir161-spec.github.io/cubik-one-landing/](https://kefir161-spec.github.io/cubik-one-landing/)  
-(ветка `main`, корень репозитория; первый деплой может занять 1–2 минуты после пуша).
-
----
-
-## Технологический стек
-
-| Область | Технологии |
-|--------|------------|
-| Разметка | HTML5, семантические секции, `loading="lazy"` для изображений |
-| Стили | CSS3, custom properties, Flexbox/Grid, адаптивные брейкпоинты, `clamp()` для типографики |
-| Логика | JavaScript (ES modules), без сборщика — прямой запуск в браузере |
-| 3D | **Three.js** (r162) через import map: сцены, `OBJLoader`, `GLTFLoader`, **Draco** для сжатых GLB |
-| Анимация | **GSAP 3** + **ScrollTrigger** (появление блоков, таймлайны сборки куба и стенки) |
-| Шрифты | Google Fonts — **Inter** |
-| Статика | SVG/PNG/JPEG, MP4 (`playsinline`, `muted` для автоплея) |
-
-Зависимости подключаются с CDN (jsDelivr); проект остаётся переносимым и простым в деплое.
+**Live demo (GitHub Pages):** [https://kefir161-spec.github.io/cubik-one-landing/](https://kefir161-spec.github.io/cubik-one-landing/)  
+(branch `main`, repository root; first deploy may take 1–2 minutes after push).
 
 ---
 
-## Структура проекта
+## Tech stack
+
+| Area | Technologies |
+|------|----------------|
+| Markup | HTML5, semantic sections, `loading="lazy"` on images |
+| Styles | CSS3, custom properties, Flexbox/Grid, responsive breakpoints, `clamp()` for type |
+| Logic | JavaScript (ES modules), no bundler — runs directly in the browser |
+| 3D | **Three.js** (r162) via import map: scenes, `OBJLoader`, `GLTFLoader`, **Draco** for compressed GLB |
+| Motion | **GSAP 3** + **ScrollTrigger** (section reveals, cube assembly and wall timelines) |
+| Fonts | Google Fonts — **Inter** |
+| Assets | SVG/PNG/JPEG, MP4 (`playsinline`, `muted` for autoplay) |
+
+Dependencies load from CDN (jsDelivr); the project stays portable and easy to deploy.
+
+---
+
+## Project layout
 
 ```
 ├── index.html
 ├── css/styles.css
 ├── js/app.js
 └── assets/
-    ├── images/   # бренд, грани кубов, товары, иконки материала
+    ├── images/   # brand, cube faces, products, material icons
     ├── media/video/
-    └── models/   # .glb / .obj для Three.js
+    └── models/   # .glb / .obj for Three.js
 ```
 
-Пути к ассетам согласованы с корнем сайта; удобно отдавать через любой статический хостинг или GitHub Pages.
+Asset paths are relative to the site root — works on any static host or GitHub Pages.
 
 ---
 
-## Что выделяет эту страницу
+## What stands out
 
-- **Несколько независимых 3D-сцен** на одной странице: вращающиеся модели в hero с общей палитрой, сборка граней из GLB, модульная «стенка» 3×3 с анимацией клипс и циклическим поворотом.
-- **Связка UI и 3D**: выбор цвета через свотчи обновляет материалы мешей через GSAP.
-- **Скролл-триггеры**: сборки запускаются при входе секции в вьюпорт, с корректным сбросом при уходе.
-- **Отказоустойчивость**: при ошибке загрузки моделей показываются fallback-сообщения (и упрощённая геометрия в hero).
-- **Адаптив**: бургер-меню, сетки продуктов и граней перестраиваются под мобильные ширины.
-- **Чистая организация ассетов**: предсказуемые папки вместо хаотичных имён файлов в корне.
+- **Several independent 3D scenes** on one page: rotating hero models with a shared palette, face assembly from GLB, a modular 3×3 “wall” with clip animation and looping rotation.
+- **UI ↔ 3D**: swatch picks drive mesh materials via GSAP.
+- **Scroll triggers**: builds start when a section enters the viewport and reset when you leave.
+- **Resilience**: failed model loads show fallback copy (and simple hero geometry).
+- **Responsive**: burger menu; product and face grids reflow on small screens.
+- **Organized assets**: predictable folders instead of random root filenames.
 
 ---
 
-## Запуск локально
+## Run locally
 
-Из корня проекта:
+From the project root:
 
 ```bash
 # Python 3
 python -m http.server 8080
 ```
 
-Откройте `http://localhost:8080` (не `file://`, чтобы работали ES modules и загрузка моделей).
+Open `http://localhost:8080` (not `file://` — ES modules and model loading need HTTP).
 
 ---
 
-## Для потенциального работодателя (кратко)
+## For employers (short)
 
-Это **фронтенд без фреймворка**, где важны производительность взаимодействия со скроллом, работа с **WebGL** и **временной шкалой анимаций**, а также аккуратная структура репозитория. Проект демонстрирует умение интегрировать тяжёлые медиа (GLB/OBJ/видео), писать поддерживаемый код на чистом JS и доводить визуальную часть до консистентного UI на разных устройствах.
+**Framework-free frontend** focused on scroll interaction, **WebGL**, and **animation timelines**, with a tidy repo layout. Shows integration of heavy media (GLB/OBJ/video), maintainable vanilla JS, and a consistent UI across breakpoints.
 
 ---
 
-## Лицензия и бренд
+## License & brand
 
-Контент и бренд **cubik.one** принадлежат правообладателю. Код лендинга может использоваться в портфолио с указанием контекста проекта.
+**cubik.one** content and branding belong to their owner. Landing code may be shown in a portfolio with project context noted.
