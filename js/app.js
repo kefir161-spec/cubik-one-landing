@@ -42,7 +42,7 @@ const loaderEl = document.getElementById('heroLoader');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xffffff);
 
-const camera = new THREE.PerspectiveCamera(28, 2.5, 0.1, 500);
+const camera = new THREE.PerspectiveCamera(32, 2.5, 0.1, 500);
 camera.position.set(0, 1.2, 34);
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true });
@@ -172,6 +172,62 @@ function layoutHeroModels(groups) {
         const box = new THREE.Box3().setFromObject(group);
         group.position.y -= box.min.y;
     });
+
+    fitHeroCamera(groups);
+}
+
+/**
+ * Подгоняет камеру под все модели в ряду с запасом под вращение вокруг Y:
+ * в плоскости XZ берём «диагональ» половины габаритов (худший случай для AABB).
+ */
+function fitHeroCamera(groups) {
+    if (!groups.length || !camera) return;
+
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+
+    groups.forEach((g) => {
+        g.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(g);
+        const sx = box.max.x - box.min.x;
+        const sz = box.max.z - box.min.z;
+        const cx = (box.max.x + box.min.x) * 0.5;
+        const cz = (box.max.z + box.min.z) * 0.5;
+        const rxz = Math.hypot(sx * 0.5, sz * 0.5);
+        minX = Math.min(minX, cx - rxz);
+        maxX = Math.max(maxX, cx + rxz);
+        minY = Math.min(minY, box.min.y);
+        maxY = Math.max(maxY, box.max.y);
+        minZ = Math.min(minZ, cz - rxz);
+        maxZ = Math.max(maxZ, cz + rxz);
+    });
+
+    const center = new THREE.Vector3(
+        (minX + maxX) * 0.5,
+        (minY + maxY) * 0.5,
+        (minZ + maxZ) * 0.5
+    );
+    const spanX = maxX - minX;
+    const spanY = maxY - minY;
+    const spanZ = maxZ - minZ;
+
+    const padding = 1.18;
+    const vHalf = THREE.MathUtils.degToRad(camera.fov * 0.5);
+    const tanHalfV = Math.tan(vHalf);
+    const tanHalfH = tanHalfV * Math.max(camera.aspect, 0.01);
+
+    const distV = (spanY * padding) / (2 * tanHalfV);
+    const distH = (spanX * padding) / (2 * tanHalfH);
+    const distZ = (spanZ * padding) / (2 * tanHalfV);
+    const dist = Math.max(distV, distH, distZ, 24);
+
+    camera.position.set(center.x, center.y + spanY * 0.07, center.z + dist);
+    camera.lookAt(center.x, center.y, center.z);
+    camera.updateProjectionMatrix();
 }
 
 function loadHeroFallbackBox(index) {
@@ -211,6 +267,10 @@ function resizeRenderer() {
     renderer.setSize(w, h);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    if (modelsLoaded >= modelFiles.length) {
+        const groups = loadedModels.filter(Boolean);
+        if (groups.length) fitHeroCamera(groups);
+    }
 }
 resizeRenderer();
 window.addEventListener('resize', resizeRenderer);

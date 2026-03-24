@@ -192,10 +192,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* Hero 3D Canvas */
 .hero-canvas-wrap {
     width: 100%;
-    aspect-ratio: 5 / 2;
-    max-height: 440px;
+    aspect-ratio: 2 / 1;
+    max-height: 500px;
     margin: 36px auto 0;
     position: relative;
+    overflow: visible;
     opacity: 0;
     transform: scale(.95);
 }
