@@ -31,17 +31,21 @@ navLinks?.querySelectorAll('a').forEach(a => {
 });
 
 // =============================================
-// Hero entrance
+// Hero entrance (editorial column + visual)
 // =============================================
 const heroTL = gsap.timeline({ defaults: { ease: 'power3.out' } });
 heroTL
-    .to('.hero-title', { opacity: 1, y: 0, duration: 0.5 })
-    .to('.hero-subtitle', { opacity: 1, y: 0, duration: 0.4 }, '-=.25')
-    .to('.hero-canvas-wrap', { opacity: 1, scale: 1, duration: 0.6, ease: 'back.out(1.2)' }, '-=.2')
-    .to('.hero-actions', { opacity: 1, y: 0, duration: 0.35 }, '-=.3');
+    .to('.hero-eyebrow', { opacity: 1, y: 0, duration: 0.45 })
+    .to('.hero-title', { opacity: 1, y: 0, duration: 0.52 }, '-=0.28')
+    .to('.hero-subtitle', { opacity: 1, y: 0, duration: 0.44 }, '-=0.34')
+    .to('.hero-trust', { opacity: 1, y: 0, duration: 0.4 }, '-=0.3')
+    .to('.hero-actions', { opacity: 1, y: 0, duration: 0.38 }, '-=0.32')
+    .to('.hero-use-cases', { opacity: 1, y: 0, duration: 0.34 }, '-=0.34')
+    .to('.hero-visual', { opacity: 1, y: 0, duration: 0.52 }, '-=0.42')
+    .to('.hero-canvas-wrap', { scale: 1, duration: 0.62, ease: 'power2.out' }, '-=0.48');
 
 // =============================================
-// Three.js — 4 rotating models: Bion, Void, Zen, Zen/2
+// Three.js — hero: один выбранный cubik крупно; переключение табами Bion / Void / Zen / Zen/2
 // =============================================
 const canvas = document.getElementById('heroCanvas');
 const canvasWrap = document.getElementById('heroCanvasWrap');
@@ -67,14 +71,13 @@ fill.position.set(-5, 3, -4);
 scene.add(fill);
 
 const sharedMaterial = new THREE.MeshStandardMaterial({
-    color: 0x7D7F7D,
+    color: 0xf4f4f4,
     roughness: 0.6,
     metalness: 0.05,
 });
 
-const MODEL_SCALE = 5.2;
-/** Зазор между «дисками» вращения соседних моделей (мир), с запасом от пересечений */
-const HERO_SPIN_GAP = 2.8;
+/** Базовый масштаб hero-модели: больше значение → крупнее cubik в кадре */
+const MODEL_SCALE = 7.4;
 
 const modelFiles = [
     { file: './assets/models/bion.glb', fixGeometry: false, format: 'gltf' },
@@ -97,7 +100,8 @@ function onModelReady() {
     modelsLoaded++;
     if (modelsLoaded >= modelFiles.length) {
         const groups = loadedModels.filter(Boolean);
-        layoutHeroModels(groups);
+        layoutHeroSingleCubikMode(groups);
+        setupHeroFacetPicker();
         loaderEl?.classList.add('hidden');
     }
 }
@@ -146,51 +150,142 @@ function buildHeroModelGroup(obj, fixGeometry = false) {
     const group = new THREE.Group();
     group.add(obj);
     group.rotation.order = 'YXZ';
-    scene.add(group);
     return group;
 }
 
-/** Радиус «диска» вращения в плоскости XZ (худший случай при повороте вокруг Y). */
-function spinRadiusXZ(group) {
-    group.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(group);
-    const size = box.getSize(new THREE.Vector3());
-    const hx = size.x / 2;
-    const hz = size.z / 2;
-    return Math.sqrt(hx * hx + hz * hz) * 1.06;
+/** Корневая группа: все варианты cubik в одной точке; виден только выбранный — крупно в кадре */
+let heroCompositionRoot = null;
+
+/** Стартовый cubik: 0 Bion, 1 Void, 2 Zen, 3 Zen/2 */
+const HERO_DEFAULT_FACET_INDEX = 2;
+
+const HERO_FACET_BENEFITS = [
+    'Open lattice — light and airflow for plants and screens.',
+    'Open frame — shelves, niches, and display surfaces.',
+    'Solid relief surfaces — privacy and clean, calm lines.',
+    'Low profile — stackable, compact layouts.',
+];
+
+function groundHeroGroupOnY(g) {
+    g.position.set(0, 0, 0);
+    g.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(g);
+    g.position.y -= box.min.y;
 }
 
-function layoutHeroModels(groups) {
+function layoutHeroSingleCubikMode(groups) {
     const n = groups.length;
     if (n === 0) return;
 
-    const radii = groups.map(spinRadiusXZ);
-    const centersX = [0];
-    for (let i = 1; i < n; i++) {
-        centersX[i] = centersX[i - 1] + radii[i - 1] + radii[i] + HERO_SPIN_GAP;
+    if (heroCompositionRoot) {
+        scene.remove(heroCompositionRoot);
+        while (heroCompositionRoot.children.length) {
+            heroCompositionRoot.remove(heroCompositionRoot.children[0]);
+        }
+        heroCompositionRoot = null;
     }
-    const rowMid = (centersX[0] + centersX[n - 1]) / 2;
 
-    groups.forEach((group, i) => {
-        group.position.x = centersX[i] - rowMid;
-        group.position.z = 0;
+    heroCompositionRoot = new THREE.Group();
+    heroCompositionRoot.rotation.order = 'YXZ';
+
+    groups.forEach((g) => {
+        heroCompositionRoot.add(g);
+        groundHeroGroupOnY(g);
     });
 
-    groups.forEach((group) => {
-        group.updateMatrixWorld(true);
-        const box = new THREE.Box3().setFromObject(group);
-        group.position.y -= box.min.y;
+    scene.add(heroCompositionRoot);
+    const startIdx = HERO_DEFAULT_FACET_INDEX;
+    heroFacetIndex = startIdx;
+    groups.forEach((g, j) => {
+        g.visible = j === startIdx;
+    });
+    syncHeroFacetChrome(startIdx);
+    const active = groups[startIdx];
+    if (active) {
+        fitHeroCamera([active], { tight: true });
+        runHeroAssemblyEntrance([active]);
+    }
+}
+
+function runHeroAssemblyEntrance(groups) {
+    groups.forEach((g) => g.scale.setScalar(0.22));
+    const active = groups[0];
+    if (active) fitHeroCamera([active], { tight: true });
+    gsap.to(groups, {
+        scale: 1,
+        duration: 0.75,
+        ease: 'power3.out',
+        stagger: 0,
+        onComplete: () => {
+            if (active) fitHeroCamera([active], { tight: true });
+        },
+    });
+}
+
+let heroFacetIndex = HERO_DEFAULT_FACET_INDEX;
+
+function syncHeroFacetChrome(index) {
+    const benefitEl = document.getElementById('heroFacetBenefit');
+    if (benefitEl) benefitEl.textContent = HERO_FACET_BENEFITS[index] ?? '';
+    document.querySelectorAll('#heroFacetPicker .facet-tab').forEach((btn, i) => {
+        btn.classList.toggle('active', i === index);
+        btn.setAttribute('aria-selected', i === index ? 'true' : 'false');
+    });
+}
+
+function setHeroFacetFocus(index, opts = {}) {
+    const animate = opts.animate === true;
+    heroFacetIndex = index;
+    syncHeroFacetChrome(index);
+
+    const groups = loadedModels.filter(Boolean);
+    const next = groups[index];
+    groups.forEach((g, j) => {
+        g.visible = j === index;
     });
 
-    fitHeroCamera(groups);
+    if (!next) return;
+
+    groundHeroGroupOnY(next);
+    fitHeroCamera([next], { tight: true });
+
+    if (animate) {
+        gsap.killTweensOf(next.scale);
+        next.scale.setScalar(0.92);
+        gsap.to(next.scale, {
+            x: 1,
+            y: 1,
+            z: 1,
+            duration: 0.48,
+            ease: 'power2.out',
+            onUpdate: () => fitHeroCamera([next], { tight: true }),
+        });
+    } else {
+        next.scale.setScalar(1);
+    }
+}
+
+function setupHeroFacetPicker() {
+    const tabs = document.querySelectorAll('#heroFacetPicker .facet-tab');
+    if (!tabs.length) return;
+    tabs.forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const i = Number.parseInt(btn.dataset.facetIndex, 10);
+            if (!Number.isFinite(i)) return;
+            setHeroFacetFocus(i, { animate: true });
+        });
+    });
 }
 
 /**
- * Подгоняет камеру под все модели в ряду с запасом под вращение вокруг Y:
- * в плоскости XZ берём «диагональ» половины габаритов (худший случай для AABB).
+ * Подгоняет камеру под bbox групп. `tight` — один cubik крупно в hero (меньше поля, ближе камера).
  */
-function fitHeroCamera(groups) {
+function fitHeroCamera(groups, opts = {}) {
     if (!groups.length || !camera) return;
+
+    const tight = opts.tight === true;
+    const padding = tight ? 1.05 : 1.18;
+    const minDist = tight ? 6.5 : 24;
 
     let minX = Infinity;
     let maxX = -Infinity;
@@ -224,7 +319,6 @@ function fitHeroCamera(groups) {
     const spanY = maxY - minY;
     const spanZ = maxZ - minZ;
 
-    const padding = 1.18;
     const vHalf = THREE.MathUtils.degToRad(camera.fov * 0.5);
     const tanHalfV = Math.tan(vHalf);
     const tanHalfH = tanHalfV * Math.max(camera.aspect, 0.01);
@@ -232,9 +326,10 @@ function fitHeroCamera(groups) {
     const distV = (spanY * padding) / (2 * tanHalfV);
     const distH = (spanX * padding) / (2 * tanHalfH);
     const distZ = (spanZ * padding) / (2 * tanHalfV);
-    const dist = Math.max(distV, distH, distZ, 24);
+    const dist = Math.max(distV, distH, distZ, minDist);
 
-    camera.position.set(center.x, center.y + spanY * 0.07, center.z + dist);
+    const yLift = tight ? spanY * 0.04 : spanY * 0.07;
+    camera.position.set(center.x, center.y + yLift, center.z + dist);
     camera.lookAt(center.x, center.y, center.z);
     camera.updateProjectionMatrix();
 }
@@ -276,7 +371,11 @@ function resizeRenderer() {
     renderer.setSize(w, h);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
-    if (modelsLoaded >= modelFiles.length) {
+    if (heroCompositionRoot) {
+        const groups = loadedModels.filter(Boolean);
+        const active = groups[heroFacetIndex] ?? groups[0];
+        if (active) fitHeroCamera([active], { tight: true });
+    } else if (modelsLoaded >= modelFiles.length) {
         const groups = loadedModels.filter(Boolean);
         if (groups.length) fitHeroCamera(groups);
     }
@@ -284,8 +383,26 @@ function resizeRenderer() {
 resizeRenderer();
 window.addEventListener('resize', resizeRenderer);
 
+canvasWrap?.addEventListener('mousemove', (e) => {
+    const r = canvasWrap.getBoundingClientRect();
+    const w = r.width || 1;
+    const h = r.height || 1;
+    const nx = ((e.clientX - r.left) / w) * 2 - 1;
+    const ny = ((e.clientY - r.top) / h) * 2 - 1;
+    heroParallaxTargetY = nx * 0.11;
+    heroParallaxTargetX = -ny * 0.07;
+});
+canvasWrap?.addEventListener('mouseleave', () => {
+    heroParallaxTargetX = 0;
+    heroParallaxTargetY = 0;
+});
+
 let heroRotationY = 0;
-const HERO_ROT_SPEED = 0.009;
+const HERO_ROT_SPEED = 0.0075;
+let heroParallaxTargetX = 0;
+let heroParallaxTargetY = 0;
+let heroParallaxX = 0;
+let heroParallaxY = 0;
 
 let asmRenderer;
 let asmScene;
@@ -381,9 +498,11 @@ const CONS_WALL_ROT_FAST = CONS_WALL_ROT_NORMAL * 2.6;
 (function animate() {
     requestAnimationFrame(animate);
     heroRotationY += HERO_ROT_SPEED;
-    for (let i = 0; i < loadedModels.length; i++) {
-        const g = loadedModels[i];
-        if (g) g.rotation.y = heroRotationY;
+    heroParallaxX += (heroParallaxTargetX - heroParallaxX) * 0.065;
+    heroParallaxY += (heroParallaxTargetY - heroParallaxY) * 0.065;
+    if (heroCompositionRoot) {
+        heroCompositionRoot.rotation.y = heroRotationY + heroParallaxY;
+        heroCompositionRoot.rotation.x = heroParallaxX;
     }
     renderer.render(scene, camera);
     if (asmRenderer && asmScene && asmCamera) {
@@ -467,28 +586,31 @@ const colorNames = {
     '#0A0A0A': 'Black',
 };
 
-document.querySelectorAll('.swatch').forEach(sw => {
+document.querySelectorAll('#colorPicker .swatch').forEach((sw) => {
     sw.addEventListener('click', () => {
-        document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('#colorPicker .swatch').forEach((s) => s.classList.remove('active'));
         sw.classList.add('active');
 
         const hex = sw.dataset.color;
         const target = new THREE.Color(hex);
-        document.getElementById('colorLabel').textContent = colorNames[hex] || '';
+        const label = document.getElementById('colorLabel');
+        if (label) label.textContent = colorNames[hex] || '';
 
-        loadedModels.forEach((root) => {
-            if (!root) return;
+        const root = heroCompositionRoot;
+        if (root) {
             root.traverse((child) => {
                 if (child.isMesh && child.material?.color) {
                     gsap.to(child.material.color, {
-                        r: target.r, g: target.g, b: target.b,
-                        duration: 0.4,
+                        r: target.r,
+                        g: target.g,
+                        b: target.b,
+                        duration: 0.45,
                         ease: 'power2.inOut',
                         overwrite: 'auto',
                     });
                 }
             });
-        });
+        }
     });
 });
 

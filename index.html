@@ -7,17 +7,18 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css?v=2">
+    <link rel="stylesheet" href="css/styles.css?v=7">
 </head>
 <body>
 
 <!-- Navigation -->
 <nav class="nav" id="nav">
     <div class="nav-inner">
-        <a href="#" class="nav-logo">
+        <a href="#hero" class="nav-logo">
             <img src="assets/images/brand/logo.jpg" alt="cubik.one" class="nav-logo-img">
         </a>
         <div class="nav-links">
+            <a href="#hero">Overview</a>
             <a href="#products">Products</a>
             <a href="#facets">Facets</a>
             <a href="#construction">Build</a>
@@ -30,77 +31,53 @@
     </div>
 </nav>
 
-<!-- Products -->
-<section class="section products" id="products">
-    <h2 class="section-title">Choose your project.</h2>
-    <p class="section-sub">Ready-made setups. For every idea.</p>
-    <div class="products-grid">
-        <div class="product-card" data-anim>
-            <div class="prod-img-wrap">
-                <img src="assets/images/products/modular-green-wall-planter/main.png" alt="Modular Green Wall Planter" class="prod-img prod-img-main" loading="lazy">
-                <img src="assets/images/products/modular-green-wall-planter/hover.jpeg" alt="Modular Green Wall Planter — alternate view" class="prod-img prod-img-hover" loading="lazy">
-            </div>
-            <h3 class="prod-name">Modular Green Wall Planter</h3>
-            <p class="prod-desc">This is the modular Green Wall Planter—a vertical living wall for kitchens, studios, and living spaces. Arrange planters and panels on a modular grid for herbs, ornamentals, and cascading greenery without giving up floor space.</p>
-            <p class="prod-price">from €430</p>
-            <a href="https://cubik.one/catalog/planters-pots/modular-green-wall-planter/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
-        </div>
-        <div class="product-card" data-anim>
-            <div class="prod-img-wrap">
-                <img src="assets/images/products/modular-table/main.png" alt="Modular cubik table" class="prod-img prod-img-main" loading="lazy">
-                <img src="assets/images/products/modular-table/hover.png" alt="Modular cubik table — alternate view" class="prod-img prod-img-hover" loading="lazy">
-            </div>
-            <h3 class="prod-name">Modular cubik table</h3>
-            <p class="prod-desc">A sturdy table you build from cubiks—same clips, new purpose. Flat top, stable base, easy to resize or rebuild for balcony, kitchen, or studio.</p>
-            <p class="prod-price">from €260</p>
-            <a href="https://cubik.one/catalog/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
-        </div>
-        <div class="product-card" data-anim>
-            <div class="prod-img-wrap prod-img-dark">
-                <img src="assets/images/products/balcony-planter-set-2/main.png" alt="Balcony planter set #2" class="prod-img prod-img-main" loading="lazy">
-                <img src="assets/images/products/balcony-planter-set-2/hover.png" alt="Balcony planter set #2 — alternate view" class="prod-img prod-img-hover" loading="lazy">
-            </div>
-            <h3 class="prod-name">Balcony planter set #2</h3>
-            <p class="prod-desc">Compact modular planters for balconies. Bold floral arrangements.</p>
-            <p class="prod-price">from €120</p>
-            <a href="https://cubik.one/catalog/diy-kits/balcony-planter-set-2/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
-        </div>
-        <div class="product-card" data-anim>
-            <div class="prod-img-wrap">
-                <img src="assets/images/products/cat-castle/main.jpeg" alt="Cat Castle" class="prod-img prod-img-main" loading="lazy">
-                <img src="assets/images/products/cat-castle/hover.jpeg" alt="Cat Castle — alternate view" class="prod-img prod-img-hover" loading="lazy">
-            </div>
-            <h3 class="prod-name">Cat Castle</h3>
-            <p class="prod-desc">Modular cat house with a lounging shelf. Cozy—and reconfigurable.</p>
-            <p class="prod-price">from €200</p>
-            <a href="https://cubik.one/catalog/playrooms/cat-house-1/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
-        </div>
-    </div>
-    <div class="products-cta">
-        <a href="https://cubik.one/catalog/" class="btn-primary" target="_blank" rel="noopener noreferrer">Go to store</a>
-    </div>
-</section>
-
-<!-- Hero — 4 rotating 3D models + color picker -->
+<!-- Hero — editorial copy + single 3D composition -->
 <section class="hero" id="hero">
-    <div class="hero-content">
-        <h1 class="hero-title">cubik.one</h1>
-        <p class="hero-subtitle">Four cubiks. Five facets. Endless possibilities.</p>
-        <div class="hero-canvas-wrap" id="heroCanvasWrap">
-            <canvas id="heroCanvas"></canvas>
-            <div class="hero-loader" id="heroLoader">Loading models…</div>
+    <div class="hero-inner">
+        <div class="hero-copy">
+            <p class="hero-eyebrow">cubik.one</p>
+            <h1 class="hero-title">Modular cubiks you snap together—planters, tables, shelving, and more.</h1>
+            <p class="hero-subtitle">Interchangeable facets, tool-free assembly, and a premium composite built for indoors and out. Reconfigure whenever your space or idea changes.</p>
+            <ul class="hero-trust" aria-label="Product highlights">
+                <li>Tool-free assembly</li>
+                <li>Outdoor-ready</li>
+                <li>Up to 1.5 t load</li>
+                <li>Recyclable</li>
+            </ul>
+            <div class="hero-actions">
+                <a href="#facets" class="btn-primary">Explore the system</a>
+                <a href="https://cubik.one/catalog/" class="btn-secondary" target="_blank" rel="noopener noreferrer">Shop cubiks</a>
+            </div>
+            <div class="hero-use-cases" aria-label="Example uses">
+                <span class="use-chip">Planters</span>
+                <span class="use-chip">Tables</span>
+                <span class="use-chip">Pet spaces</span>
+                <span class="use-chip">Shelving</span>
+            </div>
         </div>
-        <div class="color-picker" id="colorPicker">
-            <button class="swatch active" data-color="#7D7F7D" data-name="Gray"><span style="background:#7D7F7D"></span></button>
-            <button class="swatch" data-color="#E1B589" data-name="Beige"><span style="background:#E1B589"></span></button>
-            <button class="swatch" data-color="#0A6F3C" data-name="Green"><span style="background:#0A6F3C"></span></button>
-            <button class="swatch" data-color="#F4F4F4" data-name="White"><span style="background:#F4F4F4;border:1px solid #d2d2d7"></span></button>
-            <button class="swatch" data-color="#0A0A0A" data-name="Black"><span style="background:#0A0A0A"></span></button>
-        </div>
-        <p class="color-label" id="colorLabel">Gray</p>
-        <div class="hero-actions">
-            <a href="#products" class="btn-primary">Buy</a>
-            <a href="#facets" class="btn-link">Learn more ›</a>
+        <div class="hero-visual" id="heroVisual">
+            <div class="hero-canvas-wrap" id="heroCanvasWrap">
+                <canvas id="heroCanvas"></canvas>
+                <div class="hero-loader" id="heroLoader">Loading models…</div>
+            </div>
+            <p class="hero-facet-benefit" id="heroFacetBenefit">Solid relief surfaces — privacy and clean, calm lines.</p>
+            <div class="hero-facet-picker" id="heroFacetPicker" role="tablist" aria-label="Facet style">
+                <button type="button" class="facet-tab" role="tab" data-facet-index="0" aria-selected="false">Bion</button>
+                <button type="button" class="facet-tab" role="tab" data-facet-index="1" aria-selected="false">Void</button>
+                <button type="button" class="facet-tab active" role="tab" data-facet-index="2" aria-selected="true">Zen</button>
+                <button type="button" class="facet-tab" role="tab" data-facet-index="3" aria-selected="false">Zen/2</button>
+            </div>
+            <div class="hero-color-row">
+                <span class="hero-color-hint">Color</span>
+                <div class="color-picker hero-color-picker" id="colorPicker">
+                    <button type="button" class="swatch" data-color="#7D7F7D" data-name="Gray" aria-label="Gray"><span style="background:#7D7F7D"></span></button>
+                    <button type="button" class="swatch" data-color="#E1B589" data-name="Beige" aria-label="Beige"><span style="background:#E1B589"></span></button>
+                    <button type="button" class="swatch" data-color="#0A6F3C" data-name="Green" aria-label="Green"><span style="background:#0A6F3C"></span></button>
+                    <button type="button" class="swatch active" data-color="#F4F4F4" data-name="White" aria-label="White"><span style="background:#F4F4F4;border:1px solid #d2d2d7"></span></button>
+                    <button type="button" class="swatch" data-color="#0A0A0A" data-name="Black" aria-label="Black"><span style="background:#0A0A0A"></span></button>
+                </div>
+                <p class="color-label hero-color-label" id="colorLabel">White</p>
+            </div>
         </div>
     </div>
 </section>
@@ -194,6 +171,57 @@
     </div>
 </section>
 
+<!-- Products (shop) — directly before 3D builder -->
+<section class="section products" id="products">
+    <h2 class="section-title">Choose your project.</h2>
+    <p class="section-sub">Ready-made setups. For every idea.</p>
+    <div class="products-grid">
+        <div class="product-card" data-anim>
+            <div class="prod-img-wrap">
+                <img src="assets/images/products/modular-green-wall-planter/main.png" alt="Modular Green Wall Planter" class="prod-img prod-img-main" loading="lazy">
+                <img src="assets/images/products/modular-green-wall-planter/hover.jpeg" alt="Modular Green Wall Planter — alternate view" class="prod-img prod-img-hover" loading="lazy">
+            </div>
+            <h3 class="prod-name">Modular Green Wall Planter</h3>
+            <p class="prod-desc">This is the modular Green Wall Planter—a vertical living wall for kitchens, studios, and living spaces. Arrange planters and panels on a modular grid for herbs, ornamentals, and cascading greenery without giving up floor space.</p>
+            <p class="prod-price">from €430</p>
+            <a href="https://cubik.one/catalog/planters-pots/modular-green-wall-planter/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
+        </div>
+        <div class="product-card" data-anim>
+            <div class="prod-img-wrap">
+                <img src="assets/images/products/modular-table/main.png" alt="Modular cubik table" class="prod-img prod-img-main" loading="lazy">
+                <img src="assets/images/products/modular-table/hover.png" alt="Modular cubik table — alternate view" class="prod-img prod-img-hover" loading="lazy">
+            </div>
+            <h3 class="prod-name">Modular cubik table</h3>
+            <p class="prod-desc">A sturdy table you build from cubiks—same clips, new purpose. Flat top, stable base, easy to resize or rebuild for balcony, kitchen, or studio.</p>
+            <p class="prod-price">from €260</p>
+            <a href="https://cubik.one/catalog/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
+        </div>
+        <div class="product-card" data-anim>
+            <div class="prod-img-wrap prod-img-dark">
+                <img src="assets/images/products/balcony-planter-set-2/main.png" alt="Balcony planter set #2" class="prod-img prod-img-main" loading="lazy">
+                <img src="assets/images/products/balcony-planter-set-2/hover.png" alt="Balcony planter set #2 — alternate view" class="prod-img prod-img-hover" loading="lazy">
+            </div>
+            <h3 class="prod-name">Balcony planter set #2</h3>
+            <p class="prod-desc">Compact modular planters for balconies. Bold floral arrangements.</p>
+            <p class="prod-price">from €120</p>
+            <a href="https://cubik.one/catalog/diy-kits/balcony-planter-set-2/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
+        </div>
+        <div class="product-card" data-anim>
+            <div class="prod-img-wrap">
+                <img src="assets/images/products/cat-castle/main.jpeg" alt="Cat Castle" class="prod-img prod-img-main" loading="lazy">
+                <img src="assets/images/products/cat-castle/hover.jpeg" alt="Cat Castle — alternate view" class="prod-img prod-img-hover" loading="lazy">
+            </div>
+            <h3 class="prod-name">Cat Castle</h3>
+            <p class="prod-desc">Modular cat house with a lounging shelf. Cozy—and reconfigurable.</p>
+            <p class="prod-price">from €200</p>
+            <a href="https://cubik.one/catalog/playrooms/cat-house-1/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
+        </div>
+    </div>
+    <div class="products-cta">
+        <a href="https://cubik.one/catalog/" class="btn-primary" target="_blank" rel="noopener noreferrer">Go to store</a>
+    </div>
+</section>
+
 <!-- 3D Builder promo -->
 <section class="section builder-promo" id="builder">
     <div class="builder-promo-inner">
@@ -238,6 +266,6 @@
     }
 }
 </script>
-<script type="module" src="js/app.js?v=2"></script>
+<script type="module" src="js/app.js?v=8"></script>
 </body>
 </html>
