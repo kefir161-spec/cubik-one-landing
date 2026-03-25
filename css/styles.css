@@ -171,13 +171,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    Hero
    ============================================= */
 .hero {
-    min-height: 100vh;
-    min-height: 100dvh; /* mobile browser chrome */
+    /* No full-viewport min-height / vertical center — avoids huge gap under fixed nav */
+    min-height: 0;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
-    /* Bottom padding matches .section vertical rhythm */
-    padding: calc(var(--nav-h) + 2px) var(--section-pad-x) var(--section-pad-y);
+    /* Space below nav ≈ bottom padding (same token as .section) */
+    padding: calc(var(--nav-h) + var(--section-pad-y)) var(--section-pad-x) var(--section-pad-y);
     text-align: left;
 }
 .hero-inner {
@@ -501,7 +501,7 @@ section[id] {
     grid-template-columns: 1fr 1fr;
     gap: 48px;
     align-items: center;
-    margin-top: 64px;
+    margin-top: 0;
 }
 .builder-promo-text {
     text-align: left;
@@ -797,7 +797,7 @@ section[id] {
     .hero {
         align-items: stretch;
         min-height: 0;
-        padding-top: calc(var(--nav-h) + 4px);
+        padding-top: calc(var(--nav-h) + var(--section-pad-y));
         padding-bottom: var(--section-pad-y);
     }
     .hero-inner {
