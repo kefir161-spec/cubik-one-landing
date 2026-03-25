@@ -6,6 +6,14 @@ import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometr
 
 gsap.registerPlugin(ScrollTrigger);
 
+/** Должна совпадать с проверкой после загрузки assembly: глобальный ScrollTrigger.refresh() сдвигает все триггеры и может вызвать onToggle(false) у соседних секций без последующего onToggle(true). */
+function isSectionInPlayViewport(sectionEl) {
+    if (!sectionEl) return false;
+    const r = sectionEl.getBoundingClientRect();
+    const vh = window.innerHeight || 1;
+    return r.top < vh * 0.72 && r.bottom > vh * 0.12;
+}
+
 // =============================================
 // Navigation
 // =============================================
@@ -33,7 +41,7 @@ heroTL
     .to('.hero-actions', { opacity: 1, y: 0, duration: 0.35 }, '-=.3');
 
 // =============================================
-// Three.js — 4 rotating models: Bion, Void, Zen, Zen_2
+// Three.js — 4 rotating models: Bion, Void, Zen, Zen/2
 // =============================================
 const canvas = document.getElementById('heroCanvas');
 const canvasWrap = document.getElementById('heroCanvasWrap');
@@ -71,7 +79,8 @@ const HERO_SPIN_GAP = 2.8;
 const modelFiles = [
     { file: './assets/models/bion.glb', fixGeometry: false, format: 'gltf' },
     { file: './assets/models/void.glb', fixGeometry: false, format: 'gltf' },
-    { file: './assets/models/zen.obj', fixGeometry: false },
+    /** Полный Zen-cubik: zen_facet.glb в сцене с «раздутым» root-bbox нормализуется почти как void → выглядит вторым Void. */
+    { file: './assets/models/zen.glb', fixGeometry: false, format: 'gltf' },
     /** GLB точнее и детальнее OBJ */
     { file: './assets/models/zen-2.glb', fixGeometry: true, format: 'gltf' },
 ];
@@ -105,7 +114,7 @@ function cleanMeshGeometry(mesh, fixGeometry) {
 
 /**
  * Группа вращается вокруг Y; меш внутри отцентрован в (0,0,0) и без «левого» quaternion из OBJ —
- * тогда все кубы визуально крутятся в одну сторону с одинаковой скоростью.
+ * тогда все cubiks визуально крутятся в одну сторону с одинаковой скоростью.
  */
 function buildHeroModelGroup(obj, fixGeometry = false) {
     obj.rotation.set(0, 0, 0);
@@ -283,6 +292,39 @@ let asmScene;
 let asmCamera;
 let asmModelRoot;
 let asmAssemblyComplete = false;
+/** План макро-съёмок (две смежные пары фасетов) — после загрузки bion.glb */
+let assemblyMacroPlan = null;
+
+function getAssemblyCameraFitVectors() {
+    if (!asmCamera || !asmModelRoot || asmModelRoot.children.length === 0) return null;
+    const r0 = asmModelRoot.userData.assembledBoundingRadius;
+    if (r0 == null || !isFinite(r0) || r0 <= 0) return null;
+
+    const padding = 1.22;
+    const r = r0 * padding;
+    const vHalf = THREE.MathUtils.degToRad(asmCamera.fov * 0.5);
+    const distV = r / Math.tan(vHalf);
+    const distH = r / (Math.tan(vHalf) * Math.max(asmCamera.aspect, 0.001));
+    const dist = Math.max(distV, distH, 0.5);
+
+    return {
+        dist,
+        pos: new THREE.Vector3(0, 0.22, dist),
+        look: new THREE.Vector3(0, 0, 0),
+        near: Math.max(0.02, dist * 0.02),
+        far: Math.max(200, dist * 4),
+    };
+}
+
+function updateAssemblyCameraFit() {
+    const fit = getAssemblyCameraFitVectors();
+    if (!fit) return;
+    asmCamera.position.copy(fit.pos);
+    asmCamera.lookAt(fit.look);
+    asmCamera.near = fit.near;
+    asmCamera.far = fit.far;
+    asmCamera.updateProjectionMatrix();
+}
 
 /** Секция «Клипса»: стенка 3×3 + клипсы */
 let consRenderer;
@@ -300,14 +342,36 @@ let consLoopRestartFn = null;
 
 const CONS_LOOP_TURN_RAD = Math.PI * 2;
 
-const _consLeftFaceN = new THREE.Vector3();
-const _consRightFaceN = new THREE.Vector3();
+/** POV «за клипсой»: камера сзади и выше, чуть сбоку — виден силуэт, впереди паз */
+function updateConsCameraRideClip(clip) {
+    if (!clip || !consCamera || !consWallRoot) return;
+    consWallRoot.updateMatrixWorld(true);
+    clip.updateMatrixWorld(true);
+    const wpos = new THREE.Vector3();
+    clip.getWorldPosition(wpos);
+    const parentZ = new THREE.Vector3(0, 0, 1).applyQuaternion(consWallRoot.quaternion).normalize();
+    const parentY = new THREE.Vector3(0, 1, 0).applyQuaternion(consWallRoot.quaternion).normalize();
+    const parentX = new THREE.Vector3(1, 0, 0).applyQuaternion(consWallRoot.quaternion).normalize();
+    consCamera.position
+        .copy(wpos)
+        .addScaledVector(parentZ, 0.46)
+        .addScaledVector(parentY, 0.14)
+        .addScaledVector(parentX, 0.07);
+    const lookAtPt = wpos
+        .clone()
+        .addScaledVector(parentZ, -0.52)
+        .addScaledVector(parentY, -0.04);
+    consCamera.lookAt(lookAtPt);
+}
+
+const _consLeftFacetN = new THREE.Vector3();
+const _consRightFacetN = new THREE.Vector3();
 const _consToCamera = new THREE.Vector3();
 
 /** Задние клипсы — по накопленному повороту от конца сборки (135°) */
 const CONS_BACK_CLIP_AT_RAD = THREE.MathUtils.degToRad(135);
-/** Боковые клипсы — когда внешняя нормаль грани смотрит на камеру (dot с направлением на камеру) */
-const CONS_SIDE_FACE_DOT = 0.52;
+/** Боковые клипсы — когда внешняя нормаль фасета смотрит на камеру (dot с направлением на камеру) */
+const CONS_SIDE_FACET_DOT = 0.52;
 
 /** Construction: по 135° чередуем скорость — быстро к вставке задних клипс, потом обычно, снова быстро… */
 const CONS_WALL_SEGMENT_RAD = THREE.MathUtils.degToRad(135);
@@ -329,6 +393,10 @@ const CONS_WALL_ROT_FAST = CONS_WALL_ROT_NORMAL * 2.6;
         asmRenderer.render(asmScene, asmCamera);
     }
     if (consRenderer && consScene && consCamera) {
+        const consUd = consWallRoot?.userData;
+        if (consUd?.consClipMacroActive && consUd?.macroClip) {
+            updateConsCameraRideClip(consUd.macroClip);
+        }
         if (consWallComplete && consWallRoot) {
             const ud = consWallRoot.userData;
             const deltaBefore =
@@ -344,15 +412,15 @@ const CONS_WALL_ROT_FAST = CONS_WALL_ROT_NORMAL * 2.6;
             const deltaAfter =
                 ud.consIdleStartY != null ? consWallRoot.rotation.y - ud.consIdleStartY : 0;
             if (ud.consIdleStartY != null) {
-                _consLeftFaceN.set(-1, 0, 0).applyQuaternion(consWallRoot.quaternion);
-                _consRightFaceN.set(1, 0, 0).applyQuaternion(consWallRoot.quaternion);
+                _consLeftFacetN.set(-1, 0, 0).applyQuaternion(consWallRoot.quaternion);
+                _consRightFacetN.set(1, 0, 0).applyQuaternion(consWallRoot.quaternion);
                 _consToCamera.copy(consCamera.position).normalize();
-                const dotL = _consLeftFaceN.dot(_consToCamera);
-                const dotR = _consRightFaceN.dot(_consToCamera);
+                const dotL = _consLeftFacetN.dot(_consToCamera);
+                const dotR = _consRightFacetN.dot(_consToCamera);
                 if (
                     ud.leftClipMeshes?.length &&
                     !ud.consLeftClipPlayed &&
-                    dotL > CONS_SIDE_FACE_DOT &&
+                    dotL > CONS_SIDE_FACET_DOT &&
                     dotL > dotR
                 ) {
                     ud.consLeftClipPlayed = true;
@@ -361,7 +429,7 @@ const CONS_WALL_ROT_FAST = CONS_WALL_ROT_NORMAL * 2.6;
                 if (
                     ud.rightClipMeshes?.length &&
                     !ud.consRightClipPlayed &&
-                    dotR > CONS_SIDE_FACE_DOT &&
+                    dotR > CONS_SIDE_FACET_DOT &&
                     dotR > dotL
                 ) {
                     ud.consRightClipPlayed = true;
@@ -435,7 +503,10 @@ gsap.utils.toArray('[data-anim]').forEach(el => {
 });
 
 // =============================================
-// Assembly — Bion.glb: грани сходятся в куб (ScrollTrigger)
+// Assembly — фасеты сходятся в cubik (ScrollTrigger)
+//
+// Эталон загрузки — bion.glb; грани можно подменить мешами с других полных кубов из assets/models
+// (см. ASSEMBLY_MIXED_CUBE): у каждого файла те же 6 граней, выбирается меш по оси относительно центра куба.
 // =============================================
 const asmCanvas = document.getElementById('assemblyCanvas');
 const asmStage = document.getElementById('assemblyStage');
@@ -443,10 +514,819 @@ const asmFallback = document.getElementById('assemblyFallback');
 const assemblyReplayBtn = document.getElementById('assemblyReplayBtn');
 
 let asmBuildTL = null;
-/** Заполняется после загрузки bion.glb — для кнопки «ещё раз» */
+/** После загрузки куба для сборки — для кнопки «ещё раз» */
 let assemblyMeshesRef = null;
-/** Сборка граней: 1.5 = на 50% медленнее базовой скорости */
+/** Сборка фасетов: 1.5 = на 50% медленнее базовой скорости */
 const ASM_BUILD_TIME_SCALE = 1.5;
+
+/**
+ * Демо «микс»: разные цвета по сторонам куба (как разные линейки/отделки). Геометрия одна и та же;
+ * выключите false, если нужен монохром.
+ */
+const ASSEMBLY_SHOW_MIXED_FACET_COLORS = true;
+
+/**
+ * Цвет грани по доминирующей оси центра фасета относительно центра куба.
+ * Пример смысла: лево/право белые, перед/зад серые, верх бежевый (Void), низ зелёный (Zen).
+ */
+const ASSEMBLY_SLOT_COLORS = {
+    '-x': 0xf4f4f4,
+    '+x': 0xf4f4f4,
+    '+z': 0x9a9c9a,
+    '-z': 0x9a9c9a,
+    '+y': 0xe1b589,
+    '-y': 0x0a6f3c,
+};
+
+/**
+ * Куб из разных полных GLB в `assets/models`: у каждого куба берётся меш грани по оси (как в bion.glb).
+ * Позиция/стыковка — с эталона bion; геометрия — с выбранного файла.
+ */
+const ASSEMBLY_MIXED_CUBE = {
+    sources: {
+        bion: './assets/models/bion.glb',
+        void: './assets/models/void.glb',
+        /** Полный куб Zen (не zen-2 — другой продукт). Масштаб выравнивается normalize + assemblyMeshFromOtherCubik. */
+        zen: './assets/models/zen.glb',
+    },
+    /** Какой куб даёт грань на слоте (`source` — ключ из `sources`). */
+    slots: [
+        { key: '-x', source: 'bion', color: 0xf4f4f4 },
+        { key: '+x', source: 'bion', color: 0xf4f4f4 },
+        { key: '-z', source: 'zen', color: 0x9a9c9a },
+        { key: '+z', source: 'zen', color: 0x9a9c9a },
+        { key: '+y', source: 'void', color: 0xe1b589 },
+        { key: '-y', source: 'zen', color: 0x0a6f3c },
+    ],
+};
+
+
+const ASSEMBLY_FACE_KEYS = ['-x', '+x', '-y', '+y', '-z', '+z'];
+
+const ASSEMBLY_SLOT_OUTWARD = {
+    '-x': new THREE.Vector3(-1, 0, 0),
+    '+x': new THREE.Vector3(1, 0, 0),
+    '-y': new THREE.Vector3(0, -1, 0),
+    '+y': new THREE.Vector3(0, 1, 0),
+    '-z': new THREE.Vector3(0, 0, -1),
+    '+z': new THREE.Vector3(0, 0, 1),
+};
+
+function assemblyOutwardNormalFromSlotKey(key) {
+    const v = ASSEMBLY_SLOT_OUTWARD[key];
+    return v ? v.clone() : new THREE.Vector3(0, 1, 0);
+}
+
+function assemblyColorHexForLog(hex) {
+    return (Number(hex) >>> 0).toString(16).padStart(6, '0');
+}
+
+function assemblyMeshVertexCount(mesh) {
+    return mesh.geometry?.attributes?.position?.count || 0;
+}
+
+function assemblyDominantFaceKey(dir) {
+    const ax = Math.abs(dir.x);
+    const ay = Math.abs(dir.y);
+    const az = Math.abs(dir.z);
+    if (ax >= ay && ax >= az) return dir.x >= 0 ? '+x' : '-x';
+    if (ay >= ax && ay >= az) return dir.y >= 0 ? '+y' : '-y';
+    return dir.z >= 0 ? '+z' : '-z';
+}
+
+function applyAssemblySlotColors(meshes, cubikCenterW) {
+    if (!ASSEMBLY_SHOW_MIXED_FACET_COLORS || !meshes?.length) return;
+    meshes.forEach((mesh) => {
+        mesh.updateMatrixWorld(true);
+        const fb = new THREE.Box3().setFromObject(mesh);
+        const ctr = fb.getCenter(new THREE.Vector3());
+        const key = assemblyDominantFaceKey(ctr.clone().sub(cubikCenterW));
+        const hex = ASSEMBLY_SLOT_COLORS[key];
+        const m = mesh.material;
+        if (hex == null || !m?.color) return;
+        m.color.setHex(hex);
+    });
+}
+
+function loadGltfPromise(loader, url) {
+    return new Promise((resolve, reject) => {
+        loader.load(url, resolve, undefined, reject);
+    });
+}
+
+function assemblyObjectWorldMaxAxisDim(obj) {
+    obj.updateMatrixWorld(true);
+    const sz = new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
+    return Math.max(sz.x, sz.y, sz.z, 1e-6);
+}
+
+/** Обновить matrixWorld у всего поддерева от верхнего предка (нужно для мешей из клона GLTF вне сцены). */
+function assemblyUpdateWorldFromGraphRoot(obj) {
+    let top = obj;
+    while (top.parent) top = top.parent;
+    top.updateMatrixWorld(true);
+}
+
+/** Одна целевая толщина/размер грани с эталона: max по всем 6 слотам — иначе узкая деталь даёт refD≈0.02 и ratio≈0.01. */
+function assemblyRefUniformTargetDim(refByKey) {
+    let d = 0;
+    for (const k of ASSEMBLY_FACE_KEYS) {
+        const m = refByKey[k];
+        if (m) d = Math.max(d, assemblyObjectWorldMaxAxisDim(m));
+    }
+    return Math.max(d, 1e-6);
+}
+
+function assemblyBuildRefByKey(refMeshes, cubikCenterW) {
+    const buckets = Object.create(null);
+    for (const m of refMeshes) {
+        m.updateMatrixWorld(true);
+        const fb = new THREE.Box3().setFromObject(m);
+        const ctr = fb.getCenter(new THREE.Vector3());
+        const key = assemblyDominantFaceKey(ctr.clone().sub(cubikCenterW));
+        if (!buckets[key]) buckets[key] = [];
+        buckets[key].push(m);
+    }
+    const refByKey = Object.create(null);
+    for (const k of ASSEMBLY_FACE_KEYS) {
+        const arr = buckets[k];
+        if (!arr?.length) {
+            console.warn(`[BuildRefByKey] missing face key ${k}`);
+            return null;
+        }
+        refByKey[k] = arr.reduce((a, b) =>
+            assemblyMeshVertexCount(a) >= assemblyMeshVertexCount(b) ? a : b
+        );
+    }
+    console.log(`[BuildRefByKey] OK — ${Object.keys(refByKey).join(', ')}, from ${refMeshes.length} meshes`);
+    return refByKey;
+}
+
+/** Клон грани с эталона bion (та же геометрия/трансформ), другой цвет. */
+function assemblyCloneRefFacet(refMesh, baseMaterial, colorHex) {
+    const mat = baseMaterial.clone();
+    mat.color.setHex(colorHex);
+    if (refMesh.isSkinnedMesh) {
+        const c = refMesh.clone(true);
+        c.material = mat;
+        c.frustumCulled = false;
+        return c;
+    }
+    const mesh = new THREE.Mesh(refMesh.geometry.clone(), mat);
+    mesh.position.copy(refMesh.position);
+    mesh.quaternion.copy(refMesh.quaternion);
+    mesh.scale.copy(refMesh.scale);
+    mesh.userData.assemblyFacetMaxDim = assemblyObjectWorldMaxAxisDim(refMesh);
+    mesh.frustumCulled = false;
+    return mesh;
+}
+
+/**
+ * Сдвигает `root` в локальных координатах родителя так, чтобы AABB содержимого
+ * совпадал с началом координат родителя в мире (после микса граней центр часто «уплывает»).
+ */
+function assemblyRecenterRootContent(root) {
+    if (!root?.parent) return;
+    root.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(root);
+    if (box.isEmpty()) return;
+    const worldC = box.getCenter(new THREE.Vector3());
+    root.parent.updateMatrixWorld(true);
+    const invP = new THREE.Matrix4().copy(root.parent.matrixWorld).invert();
+    const inParent = worldC.clone().applyMatrix4(invP);
+    root.position.sub(inParent);
+}
+
+/**
+ * Масштаб 2.38 / maxD, центр по **мешам**.
+ * void.glb (и подобные) дают у root/scene bbox сотни тысяч единиц из пустышек/transform,
+ * при нормализации по root все грани сжимаются в «точки» — на экране два противоположных bion и мусор.
+ */
+function assemblyNormalizeCubikRoot(root, label) {
+    root.updateMatrixWorld(true);
+    const union = new THREE.Box3().makeEmpty();
+    let meshCount = 0;
+    root.traverse((ch) => {
+        if ((ch.isMesh || ch.isSkinnedMesh) && ch.geometry) {
+            union.expandByObject(ch);
+            meshCount++;
+        }
+    });
+    if (union.isEmpty()) {
+        console.warn(`[Normalize ${label}] empty bbox, ${meshCount} meshes`);
+        return false;
+    }
+    const size = union.getSize(new THREE.Vector3());
+    const maxD = Math.max(size.x, size.y, size.z, 0.001);
+    const scaleFactor = 2.38 / maxD;
+    console.log(`[Normalize ${label}] meshes=${meshCount} rawSize=(${size.x.toFixed(3)},${size.y.toFixed(3)},${size.z.toFixed(3)}) maxD=${maxD.toFixed(4)} scale=${scaleFactor.toFixed(6)}`);
+    root.scale.setScalar(scaleFactor);
+    root.updateMatrixWorld(true);
+    const union2 = new THREE.Box3().makeEmpty();
+    root.traverse((ch) => {
+        if ((ch.isMesh || ch.isSkinnedMesh) && ch.geometry) union2.expandByObject(ch);
+    });
+    root.position.sub(union2.getCenter(new THREE.Vector3()));
+    root.updateMatrixWorld(true);
+    return true;
+}
+
+function assemblyCubikCenterFromMeshes(root) {
+    const b = new THREE.Box3().makeEmpty();
+    root.updateMatrixWorld(true);
+    root.traverse((ch) => {
+        if ((ch.isMesh || ch.isSkinnedMesh) && ch.geometry) b.expandByObject(ch);
+    });
+    return b.isEmpty() ? null : b.getCenter(new THREE.Vector3());
+}
+
+/**
+ * Загружает полный куб, нормализует, map «ось грани» → меш.
+ * Несколько мешей на одну ось (винты, дубликаты) — оставляем с большим числом вершин.
+ */
+async function assemblyLoadCubikFaceMap(loader, url, facetMat, fixGeometry) {
+    console.log(`[FaceMap] loading ${url}...`);
+    const gltf = await loadGltfPromise(loader, url);
+    const root = gltf.scene.clone(true);
+    let meshTotal = 0;
+    root.traverse((c) => {
+        if (c.isMesh || c.isSkinnedMesh) {
+            cleanMeshGeometry(c, fixGeometry);
+            c.material = facetMat.clone();
+            meshTotal++;
+        }
+    });
+    console.log(`[FaceMap ${url}] raw meshes: ${meshTotal}`);
+    if (!assemblyNormalizeCubikRoot(root, url)) {
+        console.warn(`[FaceMap ${url}] normalize failed`);
+        return null;
+    }
+
+    const meshes = [];
+    root.traverse((c) => {
+        if ((c.isMesh || c.isSkinnedMesh) && c.geometry) meshes.push(c);
+    });
+    console.log(`[FaceMap ${url}] valid meshes after normalize: ${meshes.length}`);
+    if (meshes.length < 6) {
+        console.warn(`[FaceMap ${url}] < 6 meshes, abort`);
+        return null;
+    }
+
+    const cubikC = assemblyCubikCenterFromMeshes(root);
+    if (!cubikC) return null;
+    const buckets = Object.create(null);
+    for (const m of meshes) {
+        m.updateMatrixWorld(true);
+        const fb = new THREE.Box3().setFromObject(m);
+        const ctr = fb.getCenter(new THREE.Vector3());
+        const key = assemblyDominantFaceKey(ctr.clone().sub(cubikC));
+        if (!buckets[key]) buckets[key] = [];
+        buckets[key].push(m);
+    }
+
+    const bucketSummary = Object.entries(buckets).map(([k, v]) => `${k}:${v.length}`).join(' ');
+    console.log(`[FaceMap ${url}] buckets: ${bucketSummary}`);
+
+    const byKey = Object.create(null);
+    for (const k of ASSEMBLY_FACE_KEYS) {
+        const arr = buckets[k];
+        if (!arr?.length) {
+            console.warn(`[FaceMap ${url}] missing face key ${k}`);
+            return null;
+        }
+        byKey[k] = arr.reduce((a, b) =>
+            assemblyMeshVertexCount(a) >= assemblyMeshVertexCount(b) ? a : b
+        );
+    }
+    console.log(`[FaceMap ${url}] OK — all 6 keys resolved`);
+    root.updateMatrixWorld(true);
+    return byKey;
+}
+
+async function assemblyLoadCubikFaceMapFirstWorking(loader, urls, facetMat) {
+    const list = Array.isArray(urls) ? urls : [urls];
+    for (const url of list) {
+        try {
+            const map = await assemblyLoadCubikFaceMap(loader, url, facetMat, false);
+            if (map) return map;
+            console.warn(`[FaceMapFirstWorking] ${url} returned null, trying next`);
+        } catch (err) {
+            console.warn(`[FaceMapFirstWorking] ${url} error:`, err.message || err);
+        }
+    }
+    return null;
+}
+
+/** Надёжный max-размер меша в мире: обход вершин × matrixWorld (setFromObject иногда врёт). */
+function assemblyMeshWorldMaxAxisFromVertices(mesh) {
+    mesh.updateMatrixWorld(true);
+    const g = mesh.geometry;
+    if (!g?.attributes?.position) return 0;
+    const pos = g.attributes.position;
+    const v = new THREE.Vector3();
+    const mw = mesh.matrixWorld;
+    const box = new THREE.Box3().makeEmpty();
+    const n = pos.count;
+    for (let i = 0; i < n; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(mw);
+        box.expandByPoint(v);
+    }
+    if (box.isEmpty()) return 0;
+    const sz = box.getSize(new THREE.Vector3());
+    return Math.max(sz.x, sz.y, sz.z, 0);
+}
+
+/**
+ * После parent.add(mesh): подгоняем scale так, чтобы max-ось мирового AABB совпала с эталоном.
+ */
+function assemblyApplyWorldMaxFitFromVertices(mesh, targetMax, logTag) {
+    if (!mesh || !(targetMax > 1e-6)) return;
+    let wMax = assemblyMeshWorldMaxAxisFromVertices(mesh);
+    if (wMax < 1e-10) {
+        mesh.updateMatrixWorld(true);
+        const sz = new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3());
+        wMax = Math.max(sz.x, sz.y, sz.z, 0);
+    }
+    const k = targetMax / Math.max(wMax, 1e-12);
+    if (!Number.isFinite(k) || k <= 0) return;
+    if (Math.abs(k - 1) <= 0.004) return;
+    mesh.scale.multiplyScalar(k);
+    mesh.updateMatrixWorld(true);
+    console.log(`[Assembly ${logTag}] vertexWorldFit ×${k.toFixed(3)} (wMax ${wMax.toFixed(5)} → ${targetMax.toFixed(4)})`);
+}
+
+function assemblyGeometryCenterWorld(mesh) {
+    mesh.updateMatrixWorld(true);
+    const g = mesh.geometry;
+    if (!g?.attributes?.position) return null;
+    const pos = g.attributes.position;
+    const v = new THREE.Vector3();
+    const mw = mesh.matrixWorld;
+    const box = new THREE.Box3().makeEmpty();
+    for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(mw);
+        box.expandByPoint(v);
+    }
+    return box.isEmpty() ? null : box.getCenter(new THREE.Vector3());
+}
+
+/** Сдвиг mesh.position в локале родителя так, чтобы геометрия сместилась на deltaW в мире (родитель — без skew). */
+function assemblyTranslateMeshByWorldDelta(mesh, deltaW) {
+    const parent = mesh.parent;
+    if (!parent) {
+        mesh.position.add(deltaW);
+        return;
+    }
+    parent.updateMatrixWorld(true);
+    const p = new THREE.Vector3();
+    const q = new THREE.Quaternion();
+    const s = new THREE.Vector3();
+    parent.matrixWorld.decompose(p, q, s);
+    const localDelta = deltaW.clone().applyQuaternion(q.clone().invert()).divide(s);
+    mesh.position.add(localDelta);
+}
+
+function assemblySnapMeshCenterToRefWorld(mesh, targetWorldCenter, logTag) {
+    if (!mesh || !targetWorldCenter) return;
+    mesh.updateMatrixWorld(true);
+    const cM = assemblyGeometryCenterWorld(mesh);
+    if (!cM) return;
+    const deltaW = targetWorldCenter.clone().sub(cM);
+    if (deltaW.lengthSq() < 1e-12) return;
+    assemblyTranslateMeshByWorldDelta(mesh, deltaW);
+    mesh.updateMatrixWorld(true);
+    console.log(`[Assembly ${logTag}] centerSnap len=${deltaW.length().toFixed(4)}`);
+}
+
+/** Индекс самой короткой стороны мирового AABB (0=x,1=y,2=z) — у плоской грани это «толщина». */
+function assemblyThinAxisIndexWorld(mesh) {
+    mesh.updateMatrixWorld(true);
+    const sz = new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3());
+    const d = [sz.x, sz.y, sz.z];
+    const m = Math.min(d[0], d[1], d[2]);
+    return d.indexOf(m);
+}
+
+/** Для слота ±x/±y/±z тонкая ось в мире должна совпадать с осью нормали грани. */
+function assemblyWantThinAxisIndex(slotKey) {
+    const a = slotKey[1];
+    if (a === 'x') return 0;
+    if (a === 'y') return 1;
+    return 2;
+}
+
+const ASSEMBLY_THIN_FIX = {
+    '1-2': [new THREE.Vector3(1, 0, 0), Math.PI / 2],
+    '2-1': [new THREE.Vector3(1, 0, 0), -Math.PI / 2],
+    '0-2': [new THREE.Vector3(0, 1, 0), Math.PI / 2],
+    '2-0': [new THREE.Vector3(0, 1, 0), -Math.PI / 2],
+    '0-1': [new THREE.Vector3(0, 0, 1), Math.PI / 2],
+    '1-0': [new THREE.Vector3(0, 0, 1), -Math.PI / 2],
+};
+
+function assemblyFixThinAxisToMatchSlot(mesh, slotKey, logTag) {
+    const want = assemblyWantThinAxisIndex(slotKey);
+    for (let step = 0; step < 4; step++) {
+        const thin = assemblyThinAxisIndexWorld(mesh);
+        if (thin === want) return;
+        const spec = ASSEMBLY_THIN_FIX[`${thin}-${want}`];
+        if (!spec) {
+            console.warn(`[Assembly ${logTag}] thin=${thin} want=${want} — нет пары в ASSEMBLY_THIN_FIX`);
+            return;
+        }
+        mesh.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(spec[0], spec[1]));
+        mesh.updateMatrixWorld(true);
+    }
+    if (assemblyThinAxisIndexWorld(mesh) !== want) {
+        console.warn(`[Assembly ${logTag}] thinAxis не сошёлся после поворотов`);
+    } else {
+        console.log(`[Assembly ${logTag}] thinAxis→${want} (${slotKey})`);
+    }
+}
+
+/**
+ * Zen: грань ориентирована «внешней» стороной наружу — нужна рабочая сторона к центру куба.
+ * Поворот на π вокруг оси, лежащей в плоскости грани (переворот как вокруг ребра), меняет лицевую сторону на противоположную.
+ */
+function assemblyZenFlipFaceTowardCubeInterior(mesh, slotKey) {
+    mesh.updateMatrixWorld(true);
+    const nW = assemblyOutwardNormalFromSlotKey(slotKey).clone().normalize();
+    let t = new THREE.Vector3(0, 1, 0);
+    t.addScaledVector(nW, -t.dot(nW));
+    if (t.lengthSq() < 1e-8) {
+        t.set(1, 0, 0);
+        t.addScaledVector(nW, -t.dot(nW));
+    }
+    if (t.lengthSq() < 1e-8) {
+        t.set(0, 0, 1);
+        t.addScaledVector(nW, -t.dot(nW));
+    }
+    t.normalize();
+    mesh.rotateOnWorldAxis(t, Math.PI);
+    mesh.updateMatrixWorld(true);
+}
+
+function assemblyMeshFromOtherCubik(sourceMesh, refMesh, baseMaterial, colorHex, slotKey, refTargetDim) {
+    assemblyUpdateWorldFromGraphRoot(sourceMesh);
+    sourceMesh.updateMatrixWorld(true);
+    refMesh.updateMatrixWorld(true);
+    const refParent = refMesh.parent;
+    if (!refParent) {
+        console.warn(`[MeshFromCubik ${slotKey || '?'}] refMesh без parent`);
+        return assemblyCloneRefFacet(refMesh, baseMaterial, colorHex);
+    }
+    refParent.updateMatrixWorld(true);
+    const cubikBion = new THREE.Box3().setFromObject(refParent).getCenter(new THREE.Vector3());
+
+    let srcRoot = sourceMesh;
+    while (srcRoot.parent) srcRoot = srcRoot.parent;
+    srcRoot.updateMatrixWorld(true);
+    const cubikSrc = new THREE.Box3().setFromObject(srcRoot).getCenter(new THREE.Vector3());
+
+    const g = sourceMesh.geometry.clone();
+    g.applyMatrix4(sourceMesh.matrixWorld);
+    g.computeBoundingBox();
+    const bb0 = g.boundingBox;
+    const srcCtr = bb0.getCenter(new THREE.Vector3());
+
+    let nSrc = srcCtr.clone().sub(cubikSrc);
+    if (nSrc.lengthSq() < 1e-12) {
+        nSrc.copy(assemblyOutwardNormalFromSlotKey(slotKey));
+    } else {
+        nSrc.normalize();
+    }
+
+    const refBox = new THREE.Box3().setFromObject(refMesh);
+    const refCtrW = refBox.getCenter(new THREE.Vector3());
+    let nRef = refCtrW.clone().sub(cubikBion);
+    if (nRef.lengthSq() < 1e-12) {
+        nRef.copy(assemblyOutwardNormalFromSlotKey(slotKey));
+    } else {
+        nRef.normalize();
+    }
+
+    const qAlign = new THREE.Quaternion().setFromUnitVectors(nSrc, nRef);
+    if (Number.isFinite(qAlign.x) && Number.isFinite(qAlign.w)) {
+        g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(qAlign));
+    }
+
+    g.computeBoundingBox();
+    const bb = g.boundingBox;
+    g.translate(-(bb.min.x + bb.max.x) * 0.5, -(bb.min.y + bb.max.y) * 0.5, -(bb.min.z + bb.max.z) * 0.5);
+    g.computeBoundingBox();
+    const sz = g.boundingBox.getSize(new THREE.Vector3());
+    const facetMax = Math.max(sz.x, sz.y, sz.z, 1e-6);
+    const refD =
+        refTargetDim != null && Number.isFinite(refTargetDim) && refTargetDim > 1e-5
+            ? refTargetDim
+            : assemblyObjectWorldMaxAxisDim(refMesh);
+    const ratio = refD / facetMax;
+    console.log(`[MeshFromCubik ${slotKey || '?'}] facetMax=${facetMax.toFixed(4)} refD=${refD.toFixed(4)} ratio=${ratio.toFixed(6)} color=0x${assemblyColorHexForLog(colorHex)}`);
+    if (!Number.isFinite(ratio) || ratio < 1e-4 || ratio > 1e4) {
+        console.warn(`[MeshFromCubik ${slotKey || '?'}] bad ratio → cloning refMesh as fallback`);
+        return assemblyCloneRefFacet(refMesh, baseMaterial, colorHex);
+    }
+    g.computeVertexNormals();
+    g.computeBoundingSphere();
+    const mat = baseMaterial.clone();
+    mat.color.setHex(colorHex);
+    const mesh = new THREE.Mesh(g, mat);
+    mesh.position.copy(refMesh.position);
+    mesh.quaternion.copy(refMesh.quaternion);
+    mesh.scale.copy(refMesh.scale).multiplyScalar(ratio);
+    mesh.userData.assemblyFacetMaxDim = refD;
+    mesh.userData.assemblyRefWorldCenter = refCtrW.clone();
+    mesh.frustumCulled = false;
+    return mesh;
+}
+
+/**
+ * Собирает куб: грани с разных полных GLB из `ASSEMBLY_MIXED_CUBE.sources`.
+ * @returns {Promise<{ meshes: THREE.Mesh[], usedComposite: boolean }>}
+ */
+async function assemblyTryBuildMixedCubeFromModels(root, refMeshes, cubikCenterW, facetMat, loader) {
+    console.log('[Assembly] === Building mixed cube from full models ===');
+    const { sources, slots } = ASSEMBLY_MIXED_CUBE;
+    const refByKey = assemblyBuildRefByKey(refMeshes, cubikCenterW);
+    if (!refByKey) {
+        console.warn('[Assembly] refByKey failed (duplicate axes in bion?)');
+        return { meshes: refMeshes, usedComposite: false };
+    }
+    console.log('[Assembly] ref keys:', Object.keys(refByKey).join(', '));
+
+    for (const s of slots) {
+        if (!refByKey[s.key]) {
+            console.warn(`[Assembly] missing ref for slot ${s.key}`);
+            return { meshes: refMeshes, usedComposite: false };
+        }
+    }
+
+    const needed = new Set(slots.map((sl) => sl.source));
+    const faceMaps = Object.create(null);
+    faceMaps.bion = refByKey;
+
+    try {
+        for (const name of needed) {
+            if (name === 'bion') continue;
+            const spec = sources[name];
+            if (!spec) {
+                console.warn(`[Assembly] no source spec for "${name}"`);
+                return { meshes: refMeshes, usedComposite: false };
+            }
+            console.log(`[Assembly] loading "${name}" from`, spec);
+            const byKey = await assemblyLoadCubikFaceMapFirstWorking(loader, spec, facetMat);
+            if (!byKey) {
+                console.warn(`[Assembly] faceMap for "${name}" returned null`);
+                return { meshes: refMeshes, usedComposite: false };
+            }
+            console.log(`[Assembly] "${name}" face keys:`, Object.keys(byKey).join(', '));
+            faceMaps[name] = byKey;
+        }
+    } catch (err) {
+        console.error('[Assembly] loading models error:', err);
+        return { meshes: refMeshes, usedComposite: false };
+    }
+
+    const refTargetDim = assemblyRefUniformTargetDim(refByKey);
+    console.log(`[Assembly] refTargetDim (uniform scale vs bion) = ${refTargetDim.toFixed(4)}`);
+
+    const newMeshes = [];
+    for (const slot of slots) {
+        const ref = refByKey[slot.key];
+        if (slot.source === 'bion') {
+            console.log(`[Assembly slot ${slot.key}] → bion clone, color=0x${assemblyColorHexForLog(slot.color)}`);
+            newMeshes.push(assemblyCloneRefFacet(ref, facetMat, slot.color));
+            continue;
+        }
+        const src = faceMaps[slot.source]?.[slot.key];
+        if (!src) {
+            console.warn(`[Assembly slot ${slot.key}] → ${slot.source} face not found, clone ref`);
+            newMeshes.push(assemblyCloneRefFacet(ref, facetMat, slot.color));
+        } else {
+            console.log(`[Assembly slot ${slot.key}] → ${slot.source} geometry`);
+            newMeshes.push(assemblyMeshFromOtherCubik(src, ref, facetMat, slot.color, slot.key, refTargetDim));
+        }
+    }
+
+    while (root.children.length) root.remove(root.children[0]);
+    newMeshes.forEach((m) => root.add(m));
+
+    root.updateMatrixWorld(true);
+    for (let i = 0; i < newMeshes.length; i++) {
+        const sl = slots[i];
+        if (sl && sl.source !== 'bion') {
+            const m = newMeshes[i];
+            assemblyApplyWorldMaxFitFromVertices(m, refTargetDim, `slot ${sl.key}`);
+            assemblySnapMeshCenterToRefWorld(m, m.userData.assemblyRefWorldCenter, `slot ${sl.key}`);
+            assemblyFixThinAxisToMatchSlot(m, sl.key, `slot ${sl.key}`);
+            assemblySnapMeshCenterToRefWorld(m, m.userData.assemblyRefWorldCenter, `slot ${sl.key} post-twist`);
+            if (sl.source === 'zen') {
+                assemblyZenFlipFaceTowardCubeInterior(m, sl.key);
+                assemblySnapMeshCenterToRefWorld(m, m.userData.assemblyRefWorldCenter, `slot ${sl.key} post-zenFlip`);
+            }
+        }
+    }
+    root.updateMatrixWorld(true);
+
+    for (const m of newMeshes) {
+        m.updateMatrixWorld(true);
+        const wb = new THREE.Box3().setFromObject(m);
+        const ws = wb.getSize(new THREE.Vector3());
+        const wc = wb.getCenter(new THREE.Vector3());
+        console.log(`[Assembly result] mesh pos=(${m.position.x.toFixed(4)},${m.position.y.toFixed(4)},${m.position.z.toFixed(4)}) worldSize=(${ws.x.toFixed(4)},${ws.y.toFixed(4)},${ws.z.toFixed(4)}) worldCenter=(${wc.x.toFixed(4)},${wc.y.toFixed(4)},${wc.z.toFixed(4)})`);
+    }
+    console.log('[Assembly] === Mixed cube built successfully ===');
+
+    return { meshes: newMeshes, usedComposite: true };
+}
+
+function applyExplodedPositions(meshes) {
+    if (!meshes?.length) return;
+    meshes.forEach((mesh) => {
+        const ex = mesh.userData.explodedPos;
+        if (ex) mesh.position.copy(ex);
+    });
+}
+
+function buildAssemblyMacroPlan(meshes, modelRoot) {
+    if (!meshes?.length) return null;
+    modelRoot.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(modelRoot);
+    const cubikCenterW = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const half = Math.max(size.x, size.y, size.z) * 0.5 * 1.02;
+
+    const facets = meshes.map((mesh) => {
+        mesh.updateMatrixWorld(true);
+        const fb = new THREE.Box3().setFromObject(mesh);
+        const c = fb.getCenter(new THREE.Vector3());
+        const n = c.clone().sub(cubikCenterW);
+        if (n.lengthSq() < 1e-12) n.set(0, 0, 1);
+        else n.normalize();
+        return { mesh, centerW: c, normalW: n };
+    });
+
+    const pairs = [];
+    for (let i = 0; i < facets.length; i++) {
+        for (let j = i + 1; j < facets.length; j++) {
+            if (Math.abs(facets[i].normalW.dot(facets[j].normalW)) < 0.28) {
+                pairs.push([facets[i], facets[j]]);
+            }
+        }
+    }
+    if (pairs.length === 0) return null;
+
+    /** Остов: первая пара с разлёта, далее каждый новый фасет стыкуется к уже собранной оболочке. */
+    function buildSequentialSteps() {
+        const n = facets.length;
+        const pk = (a, b) => [a.mesh.uuid, b.mesh.uuid].sort().join('|');
+        const inAsm = new Set();
+        const usedEdge = new Set();
+        const steps = [];
+
+        const p0 = pairs[0];
+        steps.push({ mode: 'dual', pair: p0 });
+        inAsm.add(p0[0].mesh.uuid);
+        inAsm.add(p0[1].mesh.uuid);
+        usedEdge.add(pk(p0[0], p0[1]));
+
+        while (inAsm.size < n) {
+            let dock = null;
+            for (const p of pairs) {
+                if (usedEdge.has(pk(p[0], p[1]))) continue;
+                const [x, y] = p;
+                const xi = inAsm.has(x.mesh.uuid);
+                const yi = inAsm.has(y.mesh.uuid);
+                if (xi && !yi) {
+                    dock = { statFacet: x, moverFacet: y, pair: p };
+                    break;
+                }
+                if (!xi && yi) {
+                    dock = { statFacet: y, moverFacet: x, pair: p };
+                    break;
+                }
+            }
+            if (!dock) break;
+            usedEdge.add(pk(dock.pair[0], dock.pair[1]));
+            inAsm.add(dock.moverFacet.mesh.uuid);
+            steps.push({ mode: 'dock', statFacet: dock.statFacet, moverFacet: dock.moverFacet, pair: dock.pair });
+        }
+
+        return steps;
+    }
+
+    const sequentialSteps = buildSequentialSteps();
+
+    function focusForPair(facetA, facetB) {
+        const n1 = facetA.normalW;
+        const n2 = facetB.normalW;
+        const focus = cubikCenterW.clone().addScaledVector(n1, half).addScaledVector(n2, half);
+        const outward = n1.clone().add(n2);
+        if (outward.lengthSq() < 1e-12) outward.set(0, 1, 0);
+        outward.normalize();
+        return { focus, outward };
+    }
+
+    return {
+        cubikCenterW,
+        half,
+        pairs,
+        sequentialSteps,
+        focusForPair,
+        pair1: sequentialSteps[0]?.pair,
+        pair2: sequentialSteps[1]?.pair,
+    };
+}
+
+/** Кадр макро: зона стыка + уже собранные фасеты; дистанция строго по bbox, без принудительного подгона под общий кадр куба (иначе обрезание). */
+function computeAssemblyMacroCamera(stat, mover, preLocal, outwardWorld, extraBoundsMeshes = []) {
+    /** Запас по полю зрения — края граней и защёлки остаются в кадре. */
+    const padding = 1.32;
+    const s0 = stat.position.clone();
+    const m0 = mover.position.clone();
+
+    const box = new THREE.Box3().makeEmpty();
+    const unionPose = (sp, mp) => {
+        stat.position.copy(sp);
+        mover.position.copy(mp);
+        if (asmModelRoot) asmModelRoot.updateMatrixWorld(true);
+        const b = new THREE.Box3().makeEmpty();
+        b.expandByObject(stat);
+        b.expandByObject(mover);
+        box.union(b);
+    };
+
+    unionPose(stat.userData.assembledPos, preLocal);
+    unionPose(stat.userData.assembledPos, mover.userData.assembledPos);
+
+    stat.position.copy(s0);
+    mover.position.copy(m0);
+    if (asmModelRoot) asmModelRoot.updateMatrixWorld(true);
+
+    for (const ex of extraBoundsMeshes) {
+        if (ex) box.expandByObject(ex);
+    }
+
+    const sphere = box.getBoundingSphere(new THREE.Sphere());
+    const r = Math.max(sphere.radius * padding, 0.06);
+
+    const vHalf = THREE.MathUtils.degToRad(asmCamera.fov * 0.5);
+    const aspect = Math.max(asmCamera.aspect, 0.001);
+    const distV = r / Math.tan(vHalf);
+    const distH = r / (Math.tan(vHalf) * aspect);
+    let dist = Math.max(distV, distH, 0.42);
+
+    const dir = outwardWorld.clone();
+    if (dir.lengthSq() < 1e-12) dir.set(0.35, 0.18, 1);
+    dir.normalize();
+
+    const lookAt = sphere.center.clone();
+    const camPos = lookAt.clone().addScaledVector(dir, dist);
+    camPos.y += r * 0.06;
+
+    const fitNear = Math.max(0.004, dist * 0.008);
+    const fitFar = Math.max(160, dist * 6);
+    return { camPos, lookAt, fitNear, fitFar };
+}
+
+function computePreSnapLocal(mesh, outwardW, gap) {
+    const assembled = mesh.userData.assembledPos;
+    mesh.position.copy(assembled);
+    mesh.updateMatrixWorld(true);
+    const p0 = new THREE.Vector3();
+    mesh.getWorldPosition(p0);
+    const p1 = p0.clone().addScaledVector(outwardW, gap);
+    const local = p1.clone();
+    mesh.parent.worldToLocal(local);
+    mesh.position.copy(assembled);
+    return local;
+}
+
+function pulseAssemblySnap(mesh) {
+    const m = mesh.material;
+    if (!m || m.emissiveIntensity === undefined) return;
+    gsap.killTweensOf(m);
+    gsap.fromTo(
+        m,
+        { emissiveIntensity: 0 },
+        { emissiveIntensity: 0.75, duration: 0.085, yoyo: true, repeat: 1, ease: 'power2.out' }
+    );
+}
+
+function assemblySequentialStepsCoverAllMeshes(steps, meshes) {
+    if (!steps?.length || !meshes?.length) return false;
+    const covered = new Set();
+    for (const st of steps) {
+        if (st.mode === 'dual') {
+            covered.add(st.pair[0].mesh.uuid);
+            covered.add(st.pair[1].mesh.uuid);
+        } else {
+            covered.add(st.statFacet.mesh.uuid);
+            covered.add(st.moverFacet.mesh.uuid);
+        }
+    }
+    return covered.size === meshes.length;
+}
 
 function resetAssemblyToExploded(meshes) {
     if (asmBuildTL) {
@@ -455,33 +1335,297 @@ function resetAssemblyToExploded(meshes) {
     }
     asmAssemblyComplete = false;
     if (!meshes?.length) return;
+    applyExplodedPositions(meshes);
     meshes.forEach((mesh) => {
-        const ex = mesh.userData.explodedPos;
-        if (ex) mesh.position.copy(ex);
+        mesh.visible = false;
+        const m = mesh.material;
+        if (m && m.emissiveIntensity !== undefined) m.emissiveIntensity = 0;
     });
+    updateAssemblyCameraFit();
 }
 
 function playAssemblyBuild(meshes) {
     if (!meshes?.length) return;
     if (asmBuildTL) asmBuildTL.kill();
+    meshes.forEach((m) => {
+        m.visible = false;
+    });
     asmAssemblyComplete = false;
-    asmBuildTL = gsap.timeline({
-        defaults: { duration: 1.175 * ASM_BUILD_TIME_SCALE, ease: 'power2.inOut' },
-        onComplete: () => {
-            asmAssemblyComplete = true;
-            asmBuildTL = null;
-        },
-    });
-    const asmStagger = 0.05 * ASM_BUILD_TIME_SCALE;
-    meshes.forEach((mesh, i) => {
-        const p = mesh.userData.assembledPos;
-        if (!p) return;
+
+    const plan = assemblyMacroPlan;
+    const steps = plan?.sequentialSteps;
+    const useSequential =
+        Boolean(steps?.length && meshes.length >= 2) &&
+        assemblySequentialStepsCoverAllMeshes(steps, meshes);
+
+    const finishBuild = () => {
+        meshes.forEach((m) => {
+            m.visible = true;
+            if (m.userData?.assembledPos) m.position.copy(m.userData.assembledPos);
+            const mat = m.material;
+            if (mat && mat.emissiveIntensity !== undefined) mat.emissiveIntensity = 0;
+        });
+        asmAssemblyComplete = true;
+        asmBuildTL = null;
+    };
+
+    if (!useSequential) {
+        if (steps?.length && !assemblySequentialStepsCoverAllMeshes(steps, meshes)) {
+            console.warn('[Assembly] пошаговый план не охватывает все 6 граней — простая анимация сбора');
+        }
+        const S = ASM_BUILD_TIME_SCALE;
+        const perFace = 1.12 * S;
+        asmBuildTL = gsap.timeline({ onComplete: finishBuild });
+        meshes.forEach((mesh, i) => {
+            const p = mesh.userData.assembledPos;
+            if (!p) return;
+            const t0 = i * perFace;
+            asmBuildTL.call(() => {
+                mesh.visible = true;
+            }, null, t0);
+            asmBuildTL.to(
+                mesh.position,
+                {
+                    x: p.x,
+                    y: p.y,
+                    z: p.z,
+                    duration: perFace * 0.92,
+                    ease: 'power2.inOut',
+                },
+                t0
+            );
+        });
+        return;
+    }
+
+    const S = ASM_BUILD_TIME_SCALE;
+    const gap = Math.max(0.055, plan.half * 0.1);
+    const MACRO_APPROACH = 0.52 * S;
+    const MACRO_SNAP = 0.45 * S;
+    const PLANE_BLEND = 0.18 * S;
+    /** Финальный отъезд короче: масштаб уже близок к общему кадру. */
+    const FINAL_PULL = 0.45 * S;
+
+    asmBuildTL = gsap.timeline({ onComplete: finishBuild });
+
+    function tweenCameraClipPlanes(nearT, farT, tPos) {
+        const o = { n: asmCamera.near, f: asmCamera.far };
         asmBuildTL.to(
-            mesh.position,
-            { x: p.x, y: p.y, z: p.z },
-            i * asmStagger
+            o,
+            {
+                n: nearT,
+                f: farT,
+                duration: PLANE_BLEND,
+                ease: 'power1.out',
+                onUpdate: () => {
+                    asmCamera.near = o.n;
+                    asmCamera.far = o.f;
+                    asmCamera.updateProjectionMatrix();
+                },
+            },
+            tPos
         );
-    });
+    }
+
+    /** Длительность = фаза подлёта, чтобы lookAt не «замирал» раньше геометрии. */
+    function addCameraMacroTween(tStart, macroCam, duration) {
+        asmBuildTL.to(
+            asmCamera.position,
+            {
+                x: macroCam.camPos.x,
+                y: macroCam.camPos.y,
+                z: macroCam.camPos.z,
+                duration,
+                ease: 'power2.inOut',
+                onUpdate: () => asmCamera.lookAt(macroCam.lookAt),
+            },
+            tStart
+        );
+    }
+
+    function extrasBeforeStep(stepIndex) {
+        const done = new Set();
+        for (let s = 0; s < stepIndex; s++) {
+            const st = steps[s];
+            if (st.mode === 'dual') {
+                done.add(st.pair[0].mesh.uuid);
+                done.add(st.pair[1].mesh.uuid);
+            } else {
+                done.add(st.statFacet.mesh.uuid);
+                done.add(st.moverFacet.mesh.uuid);
+            }
+        }
+        const st = steps[stepIndex];
+        if (st.mode === 'dual') {
+            return meshes.filter((m) => done.has(m.uuid));
+        }
+        const stM = st.statFacet.mesh;
+        const mvM = st.moverFacet.mesh;
+        return meshes.filter((m) => done.has(m.uuid) && m !== stM && m !== mvM);
+    }
+
+    function addDualStep(tStart, step, extras) {
+        const dualFlip = true;
+        const [fA, fB] = step.pair;
+        const stat = dualFlip ? fB.mesh : fA.mesh;
+        const mover = dualFlip ? fA.mesh : fB.mesh;
+        const { outward } = plan.focusForPair(fA, fB);
+        const preLocal = computePreSnapLocal(mover, outward, gap);
+        const macroCam = computeAssemblyMacroCamera(stat, mover, preLocal, outward, extras);
+
+        asmBuildTL.call(
+            () => {
+                const active = new Set(extras.map((e) => e.uuid));
+                active.add(stat.uuid);
+                active.add(mover.uuid);
+                meshes.forEach((m) => {
+                    m.visible = active.has(m.uuid);
+                });
+                extras.forEach((m) => {
+                    m.position.copy(m.userData.assembledPos);
+                });
+                stat.position.copy(stat.userData.explodedPos);
+                mover.position.copy(mover.userData.explodedPos);
+            },
+            null,
+            tStart
+        );
+
+        tweenCameraClipPlanes(macroCam.fitNear, macroCam.fitFar, tStart);
+        const approachT = MACRO_APPROACH;
+
+        asmBuildTL.to(
+            stat.position,
+            {
+                x: stat.userData.assembledPos.x,
+                y: stat.userData.assembledPos.y,
+                z: stat.userData.assembledPos.z,
+                duration: MACRO_APPROACH,
+                ease: 'power2.inOut',
+            },
+            tStart
+        );
+        asmBuildTL.to(
+            mover.position,
+            { x: preLocal.x, y: preLocal.y, z: preLocal.z, duration: MACRO_APPROACH, ease: 'power2.inOut' },
+            tStart
+        );
+        addCameraMacroTween(tStart, macroCam, approachT);
+
+        const snapT = tStart + approachT;
+        asmBuildTL.to(
+            mover.position,
+            {
+                x: mover.userData.assembledPos.x,
+                y: mover.userData.assembledPos.y,
+                z: mover.userData.assembledPos.z,
+                duration: MACRO_SNAP,
+                ease: 'power2.inOut',
+                onComplete: () => {
+                    pulseAssemblySnap(mover);
+                    pulseAssemblySnap(stat);
+                },
+            },
+            snapT
+        );
+
+        return snapT + MACRO_SNAP;
+    }
+
+    function addDockStep(tStart, step, extras) {
+        const stat = step.statFacet.mesh;
+        const mover = step.moverFacet.mesh;
+        const { outward } = plan.focusForPair(step.statFacet, step.moverFacet);
+        const preLocal = computePreSnapLocal(mover, outward, gap);
+        const macroCam = computeAssemblyMacroCamera(stat, mover, preLocal, outward, extras);
+
+        asmBuildTL.call(
+            () => {
+                const active = new Set(extras.map((e) => e.uuid));
+                active.add(stat.uuid);
+                active.add(mover.uuid);
+                meshes.forEach((m) => {
+                    m.visible = active.has(m.uuid);
+                });
+                extras.forEach((m) => {
+                    m.position.copy(m.userData.assembledPos);
+                });
+                stat.position.copy(stat.userData.assembledPos);
+                mover.position.copy(mover.userData.explodedPos);
+            },
+            null,
+            tStart
+        );
+
+        tweenCameraClipPlanes(macroCam.fitNear, macroCam.fitFar, tStart);
+        const approachT = MACRO_APPROACH;
+
+        asmBuildTL.to(
+            mover.position,
+            { x: preLocal.x, y: preLocal.y, z: preLocal.z, duration: MACRO_APPROACH, ease: 'power2.inOut' },
+            tStart
+        );
+        addCameraMacroTween(tStart, macroCam, approachT);
+
+        const snapT = tStart + approachT;
+        asmBuildTL.to(
+            mover.position,
+            {
+                x: mover.userData.assembledPos.x,
+                y: mover.userData.assembledPos.y,
+                z: mover.userData.assembledPos.z,
+                duration: MACRO_SNAP,
+                ease: 'power2.inOut',
+                onComplete: () => {
+                    pulseAssemblySnap(mover);
+                    pulseAssemblySnap(stat);
+                },
+            },
+            snapT
+        );
+
+        return snapT + MACRO_SNAP;
+    }
+
+    let t = 0;
+    for (let i = 0; i < steps.length; i++) {
+        const ex = extrasBeforeStep(i);
+        t = steps[i].mode === 'dual' ? addDualStep(t, steps[i], ex) : addDockStep(t, steps[i], ex);
+    }
+
+    asmBuildTL.call(
+        () => {
+            meshes.forEach((m) => {
+                m.visible = true;
+                m.position.copy(m.userData.assembledPos);
+                const mat = m.material;
+                if (mat && mat.emissiveIntensity !== undefined) mat.emissiveIntensity = 0;
+            });
+        },
+        null,
+        t
+    );
+
+    const wideFit = getAssemblyCameraFitVectors();
+    const widePos = wideFit ? wideFit.pos : asmCamera.position.clone();
+    const wideLook = wideFit ? wideFit.look : new THREE.Vector3(0, 0, 0);
+
+    if (wideFit) {
+        tweenCameraClipPlanes(wideFit.near, wideFit.far, t);
+    }
+
+    asmBuildTL.to(
+        asmCamera.position,
+        {
+            x: widePos.x,
+            y: widePos.y,
+            z: widePos.z,
+            duration: FINAL_PULL,
+            ease: 'power2.inOut',
+            onUpdate: () => asmCamera.lookAt(wideLook),
+        },
+        t
+    );
 }
 
 function initAssemblyViewer() {
@@ -516,40 +1660,22 @@ function initAssemblyViewer() {
     asmModelRoot.rotation.order = 'YXZ';
     asmScene.add(asmModelRoot);
 
-    const faceMat = new THREE.MeshStandardMaterial({
+    const facetMat = new THREE.MeshStandardMaterial({
         color: 0x7d7f7d,
         roughness: 0.58,
         metalness: 0.04,
+        emissive: new THREE.Color(0x2f6f4e),
+        emissiveIntensity: 0,
     });
-
-    /** Дистанция только по собранному кубу — иначе «взрыв» раздувает bbox и камера уезжает в бесконечность. */
-    function updateAssemblyCameraFit() {
-        if (!asmCamera || !asmModelRoot || asmModelRoot.children.length === 0) return;
-        const r0 = asmModelRoot.userData.assembledBoundingRadius;
-        if (r0 == null || !isFinite(r0) || r0 <= 0) return;
-
-        const padding = 1.22;
-        const r = r0 * padding;
-        const vHalf = THREE.MathUtils.degToRad(asmCamera.fov * 0.5);
-        const distV = r / Math.tan(vHalf);
-        const distH = r / (Math.tan(vHalf) * Math.max(asmCamera.aspect, 0.001));
-        const dist = Math.max(distV, distH, 0.5);
-
-        asmCamera.position.set(0, 0.22, dist);
-        asmCamera.lookAt(0, 0, 0);
-        asmCamera.near = Math.max(0.02, dist * 0.02);
-        asmCamera.far = Math.max(200, dist * 4);
-        asmCamera.updateProjectionMatrix();
-    }
 
     function resizeAsm() {
         const w = asmStage.clientWidth;
         const h = asmStage.clientHeight;
         if (w < 2 || h < 2) return;
         asmRenderer.setSize(w, h, false);
-        asmCamera.aspect = w / h;
+        asmCamera.aspect = w/h;
         asmCamera.updateProjectionMatrix();
-        updateAssemblyCameraFit();
+        if (!asmBuildTL) updateAssemblyCameraFit();
     }
     resizeAsm();
     window.addEventListener('resize', resizeAsm);
@@ -562,102 +1688,169 @@ function initAssemblyViewer() {
     gltfLoader.load(
         './assets/models/bion.glb',
         (gltf) => {
-            asmFallback?.setAttribute('hidden', '');
+            void (async () => {
+                asmCanvas?.classList.add('is-assembly-preparing');
+                try {
+                asmFallback?.setAttribute('hidden', '');
 
-            const root = gltf.scene;
-            root.traverse((c) => {
-                if (c.isMesh || c.isSkinnedMesh) {
-                    c.material = faceMat.clone();
-                }
-            });
+                const root = gltf.scene;
+                root.traverse((c) => {
+                    if (c.isMesh || c.isSkinnedMesh) {
+                        c.material = facetMat.clone();
+                    }
+                });
 
-            const box = new THREE.Box3().setFromObject(root);
-            const size = box.getSize(new THREE.Vector3());
-            const maxD = Math.max(size.x, size.y, size.z, 0.001);
-            const scale = 2.38 / maxD;
-            root.scale.setScalar(scale);
+                const box = new THREE.Box3().setFromObject(root);
+                const size = box.getSize(new THREE.Vector3());
+                const maxD = Math.max(size.x, size.y, size.z, 0.001);
+                const scale = 2.38 / maxD;
+                console.log(`[Assembly bion.glb] rawSize=(${size.x.toFixed(3)},${size.y.toFixed(3)},${size.z.toFixed(3)}) maxD=${maxD.toFixed(4)} scale=${scale.toFixed(6)}`);
+                root.scale.setScalar(scale);
 
-            box.setFromObject(root);
-            const center = box.getCenter(new THREE.Vector3());
-            root.position.sub(center);
+                box.setFromObject(root);
+                const center = box.getCenter(new THREE.Vector3());
+                root.position.sub(center);
 
-            asmModelRoot.add(root);
+                asmModelRoot.add(root);
 
-            const meshes = [];
-            root.updateMatrixWorld(true);
-            root.traverse((c) => {
-                if ((c.isMesh || c.isSkinnedMesh) && c.geometry) meshes.push(c);
-            });
+                const refMeshes = [];
+                root.updateMatrixWorld(true);
+                asmModelRoot.updateMatrixWorld(true);
+                root.traverse((c) => {
+                    if ((c.isMesh || c.isSkinnedMesh) && c.geometry) refMeshes.push(c);
+                });
+                console.log(`[Assembly bion.glb] refMeshes: ${refMeshes.length}`);
 
-            if (meshes.length === 0) {
-                asmFallback?.removeAttribute('hidden');
-                return;
-            }
-
-            meshes.forEach((m) => {
-                m.userData.assembledPos = m.position.clone();
-            });
-
-            asmModelRoot.updateMatrixWorld(true);
-            const assembledSphere = new THREE.Box3()
-                .setFromObject(asmModelRoot)
-                .getBoundingSphere(new THREE.Sphere());
-            asmModelRoot.userData.assembledBoundingRadius = assembledSphere.radius;
-
-            const cubeC = new THREE.Box3()
-                .setFromObject(asmModelRoot)
-                .getCenter(new THREE.Vector3());
-
-            const expandW = Math.max(2.4, maxD * scale * 0.95);
-
-            meshes.forEach((mesh, idx) => {
-                mesh.updateMatrixWorld(true);
-                const assembledWorld = new THREE.Vector3();
-                mesh.getWorldPosition(assembledWorld);
-
-                const fb = new THREE.Box3().setFromObject(mesh);
-                const faceCtr = fb.getCenter(new THREE.Vector3());
-
-                let dir = faceCtr.clone().sub(cubeC);
-                if (dir.lengthSq() < 1e-14) {
-                    const ax = [
-                        new THREE.Vector3(1, 0, 0),
-                        new THREE.Vector3(-1, 0, 0),
-                        new THREE.Vector3(0, 1, 0),
-                        new THREE.Vector3(0, -1, 0),
-                        new THREE.Vector3(0, 0, 1),
-                        new THREE.Vector3(0, 0, -1),
-                    ];
-                    dir.copy(ax[idx % 6]);
-                } else {
-                    dir.normalize();
+                if (refMeshes.length === 0) {
+                    asmFallback?.removeAttribute('hidden');
+                    return;
                 }
 
-                const explodedWorldOrigin = assembledWorld.clone().addScaledVector(dir, expandW);
+                let cubikC = new THREE.Box3().setFromObject(asmModelRoot).getCenter(new THREE.Vector3());
+                console.log(`[Assembly] cubikCenter=(${cubikC.x.toFixed(4)},${cubikC.y.toFixed(4)},${cubikC.z.toFixed(4)})`);
 
-                mesh.parent.updateMatrixWorld(true);
-                const invParent = new THREE.Matrix4().copy(mesh.parent.matrixWorld).invert();
-                const explodedLocal = explodedWorldOrigin.clone().applyMatrix4(invParent);
+                let meshes = refMeshes;
+                try {
+                    const cr = await assemblyTryBuildMixedCubeFromModels(
+                        root,
+                        refMeshes,
+                        cubikC,
+                        facetMat,
+                        gltfLoader
+                    );
+                    meshes = cr.meshes;
+                    asmModelRoot.updateMatrixWorld(true);
+                    if (cr.usedComposite) {
+                        assemblyRecenterRootContent(root);
+                        asmModelRoot.updateMatrixWorld(true);
+                        cubikC = new THREE.Box3().setFromObject(asmModelRoot).getCenter(new THREE.Vector3());
+                    } else {
+                        applyAssemblySlotColors(meshes, cubikC);
+                    }
+                } catch (err) {
+                    console.error('[Assembly] build failed, fallback to bion only:', err);
+                    meshes = refMeshes;
+                    applyAssemblySlotColors(meshes, cubikC);
+                }
 
-                mesh.position.copy(explodedLocal);
-                mesh.userData.explodedPos = mesh.position.clone();
-            });
+                meshes.forEach((m) => {
+                    m.userData.assembledPos = m.position.clone();
+                });
 
-            updateAssemblyCameraFit();
+                asmModelRoot.updateMatrixWorld(true);
+                const assembledSphere = new THREE.Box3()
+                    .setFromObject(asmModelRoot)
+                    .getBoundingSphere(new THREE.Sphere());
+                asmModelRoot.userData.assembledBoundingRadius = assembledSphere.radius;
 
-            assemblyMeshesRef = meshes;
-            assemblyReplayBtn?.removeAttribute('disabled');
-            assemblyReplayBtn?.removeAttribute('aria-disabled');
+                const rAsm = assembledSphere.radius;
+                const expandBase = Math.max(2.4, maxD * scale * 0.95);
+                const expandW = Math.min(expandBase, Math.max(1.05, rAsm * 1.62));
 
-            ScrollTrigger.create({
-                trigger: '#assembly',
-                start: 'top 70%',
-                end: 'bottom 25%',
-                onEnter: () => playAssemblyBuild(meshes),
-                onEnterBack: () => playAssemblyBuild(meshes),
-                onLeave: () => resetAssemblyToExploded(meshes),
-                onLeaveBack: () => resetAssemblyToExploded(meshes),
-            });
+                updateAssemblyCameraFit();
+                asmScene.updateMatrixWorld(true);
+                asmModelRoot.updateMatrixWorld(true);
+                asmCamera.updateMatrixWorld(true);
+                const camWorld = new THREE.Vector3();
+                asmCamera.getWorldPosition(camWorld);
+                const toCam = camWorld.clone().sub(cubikC);
+                if (toCam.lengthSq() < 1e-12) toCam.set(0, 0, 1);
+                else toCam.normalize();
+
+                meshes.forEach((mesh, idx) => {
+                    mesh.updateMatrixWorld(true);
+                    const assembledWorld = new THREE.Vector3();
+                    mesh.getWorldPosition(assembledWorld);
+
+                    const fb = new THREE.Box3().setFromObject(mesh);
+                    const facetCtr = fb.getCenter(new THREE.Vector3());
+
+                    let dir = facetCtr.clone().sub(cubikC);
+                    if (dir.lengthSq() < 1e-14) {
+                        const ax = [
+                            new THREE.Vector3(1, 0, 0),
+                            new THREE.Vector3(-1, 0, 0),
+                            new THREE.Vector3(0, 1, 0),
+                            new THREE.Vector3(0, -1, 0),
+                            new THREE.Vector3(0, 0, 1),
+                            new THREE.Vector3(0, 0, -1),
+                        ];
+                        dir.copy(ax[idx % 6]);
+                    } else {
+                        dir.normalize();
+                    }
+
+                    const facing = dir.dot(toCam);
+                    let mult = 1.42;
+                    if (facing > 0.62) mult = 1.02;
+                    else if (facing > 0.35) mult = 1.12;
+                    else if (facing < -0.4) mult = 1.92;
+                    else if (facing < -0.15) mult = 1.68;
+
+                    const explodedWorldOrigin = assembledWorld.clone().addScaledVector(dir, expandW * mult);
+
+                    mesh.parent.updateMatrixWorld(true);
+                    const invParent = new THREE.Matrix4().copy(mesh.parent.matrixWorld).invert();
+                    const explodedLocal = explodedWorldOrigin.clone().applyMatrix4(invParent);
+
+                    mesh.position.copy(explodedLocal);
+                    mesh.userData.explodedPos = mesh.position.clone();
+                });
+
+                meshes.forEach((m) => {
+                    m.visible = false;
+                });
+
+                updateAssemblyCameraFit();
+                assemblyMacroPlan = buildAssemblyMacroPlan(meshes, asmModelRoot);
+
+                assemblyMeshesRef = meshes;
+                assemblyReplayBtn?.removeAttribute('disabled');
+                assemblyReplayBtn?.removeAttribute('aria-disabled');
+
+                const asmScrollST = ScrollTrigger.create({
+                    trigger: '#assembly',
+                    start: 'top 70%',
+                    end: 'bottom 25%',
+                    onEnter: () => playAssemblyBuild(meshes),
+                    onEnterBack: () => playAssemblyBuild(meshes),
+                    onLeave: () => resetAssemblyToExploded(meshes),
+                    onLeaveBack: () => resetAssemblyToExploded(meshes),
+                });
+                requestAnimationFrame(() => {
+                    asmScrollST.refresh();
+                    requestAnimationFrame(() => {
+                        asmScrollST.refresh();
+                        const sec = document.getElementById('assembly');
+                        if (isSectionInPlayViewport(sec)) {
+                            playAssemblyBuild(meshes);
+                        }
+                    });
+                });
+                } finally {
+                    asmCanvas?.classList.remove('is-assembly-preparing');
+                }
+            })();
         },
         undefined,
         () => {
@@ -695,7 +1888,7 @@ function mergeObjWorldGeometries(root) {
     return mergeGeometries(geoms, false);
 }
 
-/** Центрирует и тянет bbox до 1×1×1 по осям — соседние кубы в сетке стык в стык без зазоров */
+/** Центрирует и тянет bbox до 1×1×1 по осям — соседние cubiks в сетке стык в стык без зазоров */
 function normalizeObjectToUnitAxesBox(obj) {
     obj.rotation.set(0, 0, 0);
     obj.scale.set(1, 1, 1);
@@ -716,7 +1909,7 @@ function normalizeObjectToUnitAxesBox(obj) {
     obj.position.sub(c2);
 }
 
-function applyCubeMaterial(obj, hex) {
+function applyCubikMaterial(obj, hex) {
     obj.traverse((child) => {
         if (child.isMesh) {
             child.material = new THREE.MeshStandardMaterial({
@@ -760,8 +1953,8 @@ function initConstructionWall() {
     consWallRoot.rotation.order = 'YXZ';
     consScene.add(consWallRoot);
 
-    function updateConsCameraFit() {
-        if (!consCamera || !consWallRoot) return;
+    function getConstructionCameraFitDistance(fovDeg) {
+        if (!consWallRoot) return 6;
         consWallRoot.updateMatrixWorld(true);
         const r0 = consWallRoot.userData.assembledFitRadius;
         let r;
@@ -769,15 +1962,22 @@ function initConstructionWall() {
             r = r0 * 1.22;
         } else {
             const box = new THREE.Box3().setFromObject(consWallRoot);
-            if (box.isEmpty() || !isFinite(box.min.x)) return;
+            if (box.isEmpty() || !isFinite(box.min.x)) return 6;
             const sp = box.getBoundingSphere(new THREE.Sphere());
-            if (!isFinite(sp.radius) || sp.radius <= 0) return;
+            if (!isFinite(sp.radius) || sp.radius <= 0) return 6;
             r = sp.radius * 1.22;
         }
-        const vHalf = THREE.MathUtils.degToRad(consCamera.fov * 0.5);
+        const fov = fovDeg ?? consCamera?.fov ?? 38;
+        const asp = Math.max(consCamera?.aspect ?? 1, 0.001);
+        const vHalf = THREE.MathUtils.degToRad(fov * 0.5);
         const distV = r / Math.tan(vHalf);
-        const distH = r / (Math.tan(vHalf) * Math.max(consCamera.aspect, 0.001));
-        const dist = Math.max(distV, distH, 0.5);
+        const distH = r / (Math.tan(vHalf) * asp);
+        return Math.max(distV, distH, 0.5);
+    }
+
+    function updateConsCameraFit() {
+        if (!consCamera || !consWallRoot) return;
+        const dist = getConstructionCameraFitDistance();
         consCamera.position.set(0, 0.12, dist);
         consCamera.lookAt(0, 0, 0);
         consCamera.near = Math.max(0.02, dist * 0.02);
@@ -792,7 +1992,9 @@ function initConstructionWall() {
         consRenderer.setSize(w, h, false);
         consCamera.aspect = w / h;
         consCamera.updateProjectionMatrix();
-        updateConsCameraFit();
+        if (!consWallRoot?.userData?.consClipMacroActive) {
+            updateConsCameraFit();
+        }
     }
     resizeCons();
     window.addEventListener('resize', resizeCons);
@@ -804,26 +2006,38 @@ function initConstructionWall() {
 
     const GRID = [-1, 0, 1];
     const Z_CLIP_START = 1.45;
-    const D_CUBE_MOVE = 0.875;
+    const D_CUBIK_MOVE = 0.875;
     /** Клипсы: 0.5 с лёгким «набором» (отход от слота), затем короткая ускоренная посадка */
     const D_CLIP_BUILD = 0.5;
     /** Вставка в паз — ~в 2× дольше (скорость примерно на 50% ниже) */
     const D_CLIP_INSERT = 0.34;
+    /** Первая фронтальная клипса: POV + сильное замедление у паза */
+    const CONS_CLIP_MACRO_FOV = 43;
+    const CONS_CAMERA_FOV_WIDE = consCamera.fov;
+    const CONS_CLIP_MACRO_NUDGE_DUR = 0.2;
+    const CONS_CLIP_MACRO_FAST_DUR = 1.05;
+    const CONS_CLIP_MACRO_SLOW_DUR = 1.95;
+    /** Пауза после полной посадки первой — затем отъезд и только остальные фронтальные клипсы */
+    const CONS_PAUSE_AFTER_MACRO_SEATED = 0.38;
+    const CONS_CLIP_PULLBACK_DUR = 1.55;
+    /** Макро-клипса: подгонка к пазу в кадре (+X правее, −Y ниже в мировых осях стены) */
+    const CONS_MACRO_CLIP_SLOT_NUDGE_X = -0.01;
+    const CONS_MACRO_CLIP_SLOT_NUDGE_Y = -0.034;
     const CLIP_BUILD_NUDGE = 0.07;
     const EASE_CLIP_BUILD = 'sine.inOut';
     const EASE_CLIP_INSERT = 'power4.in';
-    /** Расстояние «разлёта» от слота — каждый куб из своего направления */
+    /** Расстояние «разлёта» от слота — каждый cubik из своего направления */
     const EXPLODE_DIST = 2.35;
     const STAGGER_IN_ROW = 0.06;
     const ROW_GAP = 0.11;
     const PAUSE_BEFORE_CLIPS = 0.11;
-    /** Один серый для всех типов граней */
-    const CUBE_GRAY = 0x7d7f7d;
+    /** Один серый для всех типов фасетов */
+    const CUBIK_GRAY = 0x7d7f7d;
     const CLIP_WHITE = 0xf2f2f2;
 
-    function addClipBuildThenInsert(tl, mesh, tp, face, startAt) {
+    function addClipBuildThenInsert(tl, mesh, tp, facet, startAt) {
         const p = mesh.position;
-        if (face === 'front') {
+        if (facet === 'front') {
             tl.to(
                 p,
                 {
@@ -840,7 +2054,7 @@ function initConstructionWall() {
                 { x: tp.x, y: tp.y, z: tp.z, duration: D_CLIP_INSERT, ease: EASE_CLIP_INSERT },
                 startAt + D_CLIP_BUILD
             );
-        } else if (face === 'back') {
+        } else if (facet === 'back') {
             tl.to(
                 p,
                 {
@@ -857,7 +2071,7 @@ function initConstructionWall() {
                 { x: tp.x, y: tp.y, z: tp.z, duration: D_CLIP_INSERT, ease: EASE_CLIP_INSERT },
                 startAt + D_CLIP_BUILD
             );
-        } else if (face === 'left') {
+        } else if (facet === 'left') {
             tl.to(
                 p,
                 {
@@ -874,7 +2088,7 @@ function initConstructionWall() {
                 { x: tp.x, y: tp.y, z: tp.z, duration: D_CLIP_INSERT, ease: EASE_CLIP_INSERT },
                 startAt + D_CLIP_BUILD
             );
-        } else if (face === 'right') {
+        } else if (facet === 'right') {
             tl.to(
                 p,
                 {
@@ -910,9 +2124,9 @@ function initConstructionWall() {
             const bionT = bionObj.clone(true);
             const zenT = zenObj.clone(true);
             [voidT, bionT, zenT].forEach(normalizeObjectToUnitAxesBox);
-            applyCubeMaterial(voidT, CUBE_GRAY);
-            applyCubeMaterial(bionT, CUBE_GRAY);
-            applyCubeMaterial(zenT, CUBE_GRAY);
+            applyCubikMaterial(voidT, CUBIK_GRAY);
+            applyCubikMaterial(bionT, CUBIK_GRAY);
+            applyCubikMaterial(zenT, CUBIK_GRAY);
             templates.set('void', voidT);
             templates.set('bion', bionT);
             templates.set('zen', zenT);
@@ -921,7 +2135,7 @@ function initConstructionWall() {
             const STEP_X = 1;
             const STEP_Y = 1;
 
-            const cubeRoots = [];
+            const cubikRoots = [];
 
             function pickTemplate(iy) {
                 if (iy === -1) return templates.get('void');
@@ -932,43 +2146,43 @@ function initConstructionWall() {
             for (const iy of GRID) {
                 const tpl = pickTemplate(iy);
                 for (const ix of GRID) {
-                    const cube = tpl.clone(true);
-                    cube.traverse((ch) => {
+                    const cubik = tpl.clone(true);
+                    cubik.traverse((ch) => {
                         if (ch.isMesh && ch.material) {
                             ch.material = ch.material.clone();
-                            ch.material.color.setHex(CUBE_GRAY);
+                            ch.material.color.setHex(CUBIK_GRAY);
                         }
                     });
                     const ax = ix * STEP_X;
                     const ay = iy * STEP_Y;
-                    cube.userData.assembled = new THREE.Vector3(ax, ay, 0);
-                    cube.userData.ix = ix;
-                    cube.userData.iy = iy;
-                    cube.userData.sortY = ay;
-                    cube.userData.sortX = ax;
-                    consWallRoot.add(cube);
-                    cubeRoots.push(cube);
+                    cubik.userData.assembled = new THREE.Vector3(ax, ay, 0);
+                    cubik.userData.ix = ix;
+                    cubik.userData.iy = iy;
+                    cubik.userData.sortY = ay;
+                    cubik.userData.sortX = ax;
+                    consWallRoot.add(cubik);
+                    cubikRoots.push(cubik);
                 }
             }
 
             /** Одна плоскость фасада: у Void/Bion/Zen разная геометрия — выравниваем по max Z */
-            cubeRoots.forEach((c) => {
+            cubikRoots.forEach((c) => {
                 c.position.copy(c.userData.assembled);
             });
             consWallRoot.updateMatrixWorld(true);
             let wallFrontZ = -Infinity;
-            cubeRoots.forEach((c) => {
+            cubikRoots.forEach((c) => {
                 const b = new THREE.Box3().setFromObject(c);
                 wallFrontZ = Math.max(wallFrontZ, b.max.z);
             });
-            cubeRoots.forEach((c) => {
+            cubikRoots.forEach((c) => {
                 c.updateMatrixWorld(true);
                 const b = new THREE.Box3().setFromObject(c);
                 const dz = wallFrontZ - b.max.z;
                 c.position.z += dz;
                 c.userData.assembled.z += dz;
             });
-            /** Стартовая позиция: каждый куб — из своего угла (разные направления от слота) */
+            /** Стартовая позиция: каждый cubik — из своего угла (разные направления от слота) */
             /** Нижний ряд — снизу, верхний — сверху; средний — с заметным подъёмом снизу (как нижний), без «прыжка из ниоткуда» */
             const explodeDirs = [
                 new THREE.Vector3(-1.15, -1.45, 0.95),
@@ -981,7 +2195,7 @@ function initConstructionWall() {
                 new THREE.Vector3(0.05, 1.75, 1.05),
                 new THREE.Vector3(1.15, 1.45, 0.95),
             ];
-            cubeRoots.forEach((c) => {
+            cubikRoots.forEach((c) => {
                 const ix = c.userData.ix;
                 const iy = c.userData.iy;
                 const idx = (iy + 1) * 3 + (ix + 1);
@@ -993,7 +2207,7 @@ function initConstructionWall() {
              * Фронт стены и Z пазов — только из СОБРАННЫх позиций.
              * Раньше br здесь считали по «разлёту» → wallFrontZ раздувался, клипсы висели в стороне и не совпадали с пазами.
              */
-            cubeRoots.forEach((c) => {
+            cubikRoots.forEach((c) => {
                 c.position.copy(c.userData.assembled);
             });
             consWallRoot.updateMatrixWorld(true);
@@ -1001,14 +2215,14 @@ function initConstructionWall() {
             let wallBackZAssembled = Infinity;
             let wallMinXAssembled = Infinity;
             let wallMaxXAssembled = -Infinity;
-            cubeRoots.forEach((c) => {
+            cubikRoots.forEach((c) => {
                 const b = new THREE.Box3().setFromObject(c);
                 wallFrontZAssembled = Math.max(wallFrontZAssembled, b.max.z);
                 wallBackZAssembled = Math.min(wallBackZAssembled, b.min.z);
                 wallMinXAssembled = Math.min(wallMinXAssembled, b.min.x);
                 wallMaxXAssembled = Math.max(wallMaxXAssembled, b.max.x);
             });
-            cubeRoots.forEach((c) => {
+            cubikRoots.forEach((c) => {
                 c.position.copy(c.userData.exploded);
             });
             consWallRoot.updateMatrixWorld(true);
@@ -1055,12 +2269,12 @@ function initConstructionWall() {
             const leftClipMeshes = [];
             const rightClipMeshes = [];
 
-            /** Глубже в паз: плоскость клипсы ближе к грани куба (ровнее с фасадом). */
+            /** Глубже в паз: плоскость клипсы ближе к фасету cubik (ровнее с фасадом). */
             const zClipOnWall = wallFrontZAssembled - 0.028;
             const zClipOnWallBack = wallBackZAssembled + 0.028;
             /**
              * 24 клипса: по два гнезда на каждом внутреннем шве ячейки 1×1.
-             * По инструкции кубики — пазы на рёбрах; на стыке два куба дают общее гнездо.
+             * По инструкции cubiks — пазы на рёбрах; на стыке два cubiks дают общее гнездо.
              * Точки — на ¼ и ¾ длины ребра (не «угол ±0.38»), чтобы совпасть с разметкой пазов в модели.
              */
             const clipAlongEdge = Math.min(STEP_X, STEP_Y) * 0.25;
@@ -1068,11 +2282,11 @@ function initConstructionWall() {
             const rotClipUniform = new THREE.Quaternion().setFromEuler(
                 new THREE.Euler(Math.PI / 2, Math.PI / 2, 0, 'XYZ')
             );
-            /** Задняя грань: ось вставки и «верх» клипсы развернуты на 180° относительно фронта (вокруг Y). */
+            /** Задний фасет: ось вставки и «верх» клипсы развернуты на 180° относительно фронта (вокруг Y). */
             const rotClipBack = new THREE.Quaternion()
                 .setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI)
                 .multiply(rotClipUniform.clone());
-            /** Боковые грани: ±90° к фронту; только 4 клипсы — по одному пазу на каждый горизонтальный шов слева и справа. */
+            /** Боковые фасеты: ±90° к фронту; только 4 клипсы — по одному пазу на каждый горизонтальный шов слева и справа. */
             const qClipRotLeft = new THREE.Quaternion().setFromAxisAngle(
                 new THREE.Vector3(0, 1, 0),
                 -Math.PI / 2
@@ -1190,15 +2404,15 @@ function initConstructionWall() {
                 rightClipMeshes.push(m);
             });
 
-            /** Центр вращения: сдвиг всей стенки, чтобы ось Y проходила через центр bbox кубов */
-            cubeRoots.forEach((c) => c.position.copy(c.userData.assembled));
+            /** Центр вращения: сдвиг всей стенки, чтобы ось Y проходила через центр bbox cubiks */
+            cubikRoots.forEach((c) => c.position.copy(c.userData.assembled));
             consWallRoot.updateMatrixWorld(true);
             const wallPivotBox = new THREE.Box3();
-            cubeRoots.forEach((c) => {
+            cubikRoots.forEach((c) => {
                 wallPivotBox.union(new THREE.Box3().setFromObject(c));
             });
             const wallPivotCenter = wallPivotBox.getCenter(new THREE.Vector3());
-            cubeRoots.forEach((c) => {
+            cubikRoots.forEach((c) => {
                 c.position.sub(wallPivotCenter);
                 c.userData.assembled.sub(wallPivotCenter);
                 c.userData.exploded.sub(wallPivotCenter);
@@ -1214,8 +2428,8 @@ function initConstructionWall() {
                 m.userData.targetPos.sub(wallPivotCenter);
             });
 
-            function setCubeMeshesOpacity(cube, alpha) {
-                cube.traverse((ch) => {
+            function setCubikMeshesOpacity(cubik, alpha) {
+                cubik.traverse((ch) => {
                     if (ch.isMesh && ch.material) {
                         const mat = ch.material;
                         mat.transparent = alpha < 0.999;
@@ -1276,11 +2490,13 @@ function initConstructionWall() {
             consWallRoot.userData.consRightClipPlayed = false;
             consWallRoot.userData.consBackClipPlayed = false;
             consWallRoot.userData.consRotFastAfterBack = false;
+            consWallRoot.userData.consClipMacroActive = false;
+            consWallRoot.userData.macroClip = null;
             consWallRoot.userData.playBackClipFlyIn = playBackClipFlyIn;
             consWallRoot.userData.playLeftClipFlyIn = playLeftClipFlyIn;
             consWallRoot.userData.playRightClipFlyIn = playRightClipFlyIn;
 
-            consAnimPayload = { cubeRoots, clipMeshes, backClipMeshes, leftClipMeshes, rightClipMeshes };
+            consAnimPayload = { cubikRoots, clipMeshes, backClipMeshes, leftClipMeshes, rightClipMeshes };
 
             function resetWallAnim() {
                 if (consWallRoot) {
@@ -1310,6 +2526,14 @@ function initConstructionWall() {
                     consWallRoot.userData.consRightClipPlayed = false;
                     consWallRoot.userData.consBackClipPlayed = false;
                     consWallRoot.userData.consRotFastAfterBack = false;
+                    consWallRoot.userData.consClipMacroActive = false;
+                    consWallRoot.userData.macroClip = null;
+                }
+                if (consCamera) {
+                    gsap.killTweensOf(consCamera.position);
+                    gsap.killTweensOf(consCamera);
+                    consCamera.fov = CONS_CAMERA_FOV_WIDE;
+                    consCamera.updateProjectionMatrix();
                 }
                 [...clipMeshes, ...backClipMeshes, ...leftClipMeshes, ...rightClipMeshes].forEach((m) => {
                     const mat = m.material;
@@ -1322,14 +2546,14 @@ function initConstructionWall() {
                     }
                 });
                 const firstRowIy = -1;
-                cubeRoots.forEach((c) => {
+                cubikRoots.forEach((c) => {
                     c.traverse((ch) => {
                         if (ch.isMesh && ch.material) gsap.killTweensOf(ch.material);
                     });
                     c.position.copy(c.userData.exploded);
                     const isFirst = c.userData.iy === firstRowIy;
                     c.visible = isFirst;
-                    setCubeMeshesOpacity(c, 0);
+                    setCubikMeshesOpacity(c, 0);
                 });
                 clipMeshes.forEach((m) => {
                     const tp = m.userData.targetPos;
@@ -1357,7 +2581,7 @@ function initConstructionWall() {
                 });
             }
 
-            cubeRoots.forEach((c) => {
+            cubikRoots.forEach((c) => {
                 c.position.copy(c.userData.assembled);
             });
             clipMeshes.forEach((m) => {
@@ -1409,18 +2633,21 @@ function initConstructionWall() {
                     onComplete: () => {
                         consWallComplete = true;
                         consBuildTL = null;
+                        updateConsCameraFit();
                         if (consWallRoot?.userData) {
                             consWallRoot.userData.consIdleStartY = consWallRoot.rotation.y;
                             consWallRoot.userData.consLeftClipPlayed = false;
                             consWallRoot.userData.consRightClipPlayed = false;
                             consWallRoot.userData.consBackClipPlayed = false;
                             consWallRoot.userData.consRotFastAfterBack = false;
+                            consWallRoot.userData.consClipMacroActive = false;
+                            consWallRoot.userData.macroClip = null;
                         }
                     },
                 });
-                const { cubeRoots: cubes, clipMeshes: clips } = consAnimPayload;
+                const { cubikRoots: cubiks, clipMeshes: clips } = consAnimPayload;
                 const rowOf = (iy) =>
-                    cubes
+                    cubiks
                         .filter((c) => c.userData.iy === iy)
                         .sort((a, b) => a.userData.sortX - b.userData.sortX);
                 const rowOrder = [-1, 0, 1];
@@ -1430,13 +2657,13 @@ function initConstructionWall() {
                     consBuildTL.add(() => {
                         row.forEach((c) => {
                             c.visible = true;
-                            setCubeMeshesOpacity(c, 0);
+                            setCubikMeshesOpacity(c, 0);
                             c.traverse((ch) => {
                                 if (ch.isMesh && ch.material) {
                                     const m = ch.material;
                                     gsap.to(m, {
                                         opacity: 1,
-                                        duration: D_CUBE_MOVE * 0.92,
+                                        duration: D_CUBIK_MOVE * 0.92,
                                         ease: 'power2.out',
                                         overwrite: 'auto',
                                         onComplete: () => {
@@ -1451,22 +2678,135 @@ function initConstructionWall() {
                         const p = c.userData.assembled;
                         consBuildTL.to(
                             c.position,
-                            { x: p.x, y: p.y, z: p.z, duration: D_CUBE_MOVE, ease: 'sine.inOut' },
+                            { x: p.x, y: p.y, z: p.z, duration: D_CUBIK_MOVE, ease: 'sine.inOut' },
                             rowT + i * STAGGER_IN_ROW
                         );
                     });
-                    rowT += (row.length - 1) * STAGGER_IN_ROW + D_CUBE_MOVE + ROW_GAP;
+                    rowT += (row.length - 1) * STAGGER_IN_ROW + D_CUBIK_MOVE + ROW_GAP;
                 });
-                const cubeEnd = rowT - ROW_GAP;
+                const cubikEnd = rowT - ROW_GAP;
+                const clipPhaseStart = cubikEnd + PAUSE_BEFORE_CLIPS;
+                /** Макро-сцена: верхний ярус (макс. Y у фронтальных клипс), среди них ближе к центру по X */
+                let topClipY = -Infinity;
+                for (let ic = 0; ic < clips.length; ic++) {
+                    topClipY = Math.max(topClipY, clips[ic].userData.targetPos.y);
+                }
+                let macroClip = clips[0];
+                let bestAbsX = Infinity;
+                for (let ic = 0; ic < clips.length; ic++) {
+                    const cm = clips[ic];
+                    const p0 = cm.userData.targetPos;
+                    if (p0.y < topClipY - 0.002) continue;
+                    const ax = Math.abs(p0.x);
+                    if (ax < bestAbsX) {
+                        bestAbsX = ax;
+                        macroClip = cm;
+                    }
+                }
+                if (consWallRoot.userData) {
+                    consWallRoot.userData.macroClip = macroClip;
+                }
+                const macroSlowT0 =
+                    clipPhaseStart + CONS_CLIP_MACRO_NUDGE_DUR + CONS_CLIP_MACRO_FAST_DUR;
+                const macroClipSeatedT = macroSlowT0 + CONS_CLIP_MACRO_SLOW_DUR;
+                const clipPullT = macroClipSeatedT + CONS_PAUSE_AFTER_MACRO_SEATED;
+                const fitDistZ = getConstructionCameraFitDistance(CONS_CAMERA_FOV_WIDE);
+
+                const tpM = macroClip.userData.targetPos;
+                const pM = macroClip.position;
+                const tpMx = tpM.x + CONS_MACRO_CLIP_SLOT_NUDGE_X;
+                const tpMy = tpM.y + CONS_MACRO_CLIP_SLOT_NUDGE_Y;
+
                 consBuildTL.add(() => {
                     clips.forEach((m) => {
-                        m.visible = true;
+                        m.visible = m === macroClip;
                     });
-                }, cubeEnd + PAUSE_BEFORE_CLIPS);
-                const clipPhaseStart = cubeEnd + PAUSE_BEFORE_CLIPS;
+                    if (consWallRoot.userData) {
+                        consWallRoot.userData.consClipMacroActive = true;
+                    }
+                    pM.x = tpMx;
+                    pM.y = tpMy;
+                    consCamera.fov = CONS_CLIP_MACRO_FOV;
+                    consCamera.updateProjectionMatrix();
+                    updateConsCameraRideClip(macroClip);
+                }, clipPhaseStart);
+
+                consBuildTL.to(
+                    pM,
+                    {
+                        x: tpMx,
+                        y: tpMy,
+                        z: tpM.z + Z_CLIP_START + CLIP_BUILD_NUDGE,
+                        duration: CONS_CLIP_MACRO_NUDGE_DUR,
+                        ease: 'sine.inOut',
+                    },
+                    clipPhaseStart
+                );
+                consBuildTL.to(
+                    pM,
+                    {
+                        x: tpMx,
+                        y: tpMy,
+                        z: tpM.z + 0.065,
+                        duration: CONS_CLIP_MACRO_FAST_DUR,
+                        ease: 'power1.in',
+                    },
+                    clipPhaseStart + CONS_CLIP_MACRO_NUDGE_DUR
+                );
+                consBuildTL.to(
+                    pM,
+                    {
+                        x: tpMx,
+                        y: tpMy,
+                        z: tpM.z,
+                        duration: CONS_CLIP_MACRO_SLOW_DUR,
+                        ease: 'power2.out',
+                    },
+                    macroSlowT0
+                );
+
+                consBuildTL.add(() => {
+                    if (consWallRoot.userData) {
+                        consWallRoot.userData.consClipMacroActive = false;
+                    }
+                    clips.forEach((m) => {
+                        if (m !== macroClip) m.visible = true;
+                    });
+                }, clipPullT);
+
+                consBuildTL.to(
+                    consCamera.position,
+                    {
+                        x: 0,
+                        y: 0.12,
+                        z: fitDistZ,
+                        duration: CONS_CLIP_PULLBACK_DUR,
+                        ease: 'power2.inOut',
+                        onUpdate: () => {
+                            consCamera.lookAt(0, 0.02, 0);
+                        },
+                    },
+                    clipPullT
+                );
+                const consFovTween = { f: CONS_CLIP_MACRO_FOV };
+                consBuildTL.to(
+                    consFovTween,
+                    {
+                        f: CONS_CAMERA_FOV_WIDE,
+                        duration: CONS_CLIP_PULLBACK_DUR,
+                        ease: 'power2.inOut',
+                        onUpdate: () => {
+                            consCamera.fov = consFovTween.f;
+                            consCamera.updateProjectionMatrix();
+                        },
+                    },
+                    clipPullT
+                );
+
                 clips.forEach((m) => {
+                    if (m === macroClip) return;
                     const tp = m.userData.targetPos;
-                    addClipBuildThenInsert(consBuildTL, m, tp, 'front', clipPhaseStart);
+                    addClipBuildThenInsert(consBuildTL, m, tp, 'front', clipPullT);
                 });
             }
 
@@ -1476,7 +2816,7 @@ function initConstructionWall() {
                 playWallAnim();
             };
 
-            ScrollTrigger.create({
+            const consScrollST = ScrollTrigger.create({
                 trigger: '#construction',
                 start: 'top 70%',
                 end: 'bottom 25%',
@@ -1485,6 +2825,20 @@ function initConstructionWall() {
                     if (self.isActive) playWallAnim();
                     else resetWallAnim();
                 },
+            });
+            requestAnimationFrame(() => {
+                consScrollST.refresh();
+                requestAnimationFrame(() => {
+                    consScrollST.refresh();
+                    const sec = document.getElementById('construction');
+                    if (
+                        isSectionInPlayViewport(sec) &&
+                        !consBuildTL &&
+                        !consWallComplete
+                    ) {
+                        playWallAnim();
+                    }
+                });
             });
         } catch (e) {
             console.warn('Construction wall:', e);

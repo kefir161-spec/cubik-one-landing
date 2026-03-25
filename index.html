@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>cubik.one — Modular cubes</title>
+    <title>cubik.one — Modular cubiks</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -19,7 +19,7 @@
         </a>
         <div class="nav-links">
             <a href="#products">Products</a>
-            <a href="#faces">Faces</a>
+            <a href="#facets">Facets</a>
             <a href="#construction">Build</a>
             <a href="#material">Material</a>
             <a href="#" class="nav-buy">Buy</a>
@@ -30,11 +30,62 @@
     </div>
 </nav>
 
+<!-- Products -->
+<section class="section products" id="products">
+    <h2 class="section-title">Choose your project.</h2>
+    <p class="section-sub">Ready-made setups. For every idea.</p>
+    <div class="products-grid">
+        <div class="product-card" data-anim>
+            <div class="prod-img-wrap">
+                <img src="assets/images/products/modular-green-wall-planter/main.png" alt="Modular Green Wall Planter" class="prod-img prod-img-main" loading="lazy">
+                <img src="assets/images/products/modular-green-wall-planter/hover.jpeg" alt="Modular Green Wall Planter — alternate view" class="prod-img prod-img-hover" loading="lazy">
+            </div>
+            <h3 class="prod-name">Modular Green Wall Planter</h3>
+            <p class="prod-desc">This is the modular Green Wall Planter—a vertical living wall for kitchens, studios, and living spaces. Arrange planters and panels on a modular grid for herbs, ornamentals, and cascading greenery without giving up floor space.</p>
+            <p class="prod-price">from €430</p>
+            <a href="https://cubik.one/catalog/planters-pots/modular-green-wall-planter/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
+        </div>
+        <div class="product-card" data-anim>
+            <div class="prod-img-wrap">
+                <img src="assets/images/products/modular-table/main.png" alt="Modular cubik table" class="prod-img prod-img-main" loading="lazy">
+                <img src="assets/images/products/modular-table/hover.png" alt="Modular cubik table — alternate view" class="prod-img prod-img-hover" loading="lazy">
+            </div>
+            <h3 class="prod-name">Modular cubik table</h3>
+            <p class="prod-desc">A sturdy table you build from cubiks—same clips, new purpose. Flat top, stable base, easy to resize or rebuild for balcony, kitchen, or studio.</p>
+            <p class="prod-price">from €260</p>
+            <a href="https://cubik.one/catalog/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
+        </div>
+        <div class="product-card" data-anim>
+            <div class="prod-img-wrap prod-img-dark">
+                <img src="assets/images/products/balcony-planter-set-2/main.png" alt="Balcony planter set #2" class="prod-img prod-img-main" loading="lazy">
+                <img src="assets/images/products/balcony-planter-set-2/hover.png" alt="Balcony planter set #2 — alternate view" class="prod-img prod-img-hover" loading="lazy">
+            </div>
+            <h3 class="prod-name">Balcony planter set #2</h3>
+            <p class="prod-desc">Compact modular planters for balconies. Bold floral arrangements.</p>
+            <p class="prod-price">from €120</p>
+            <a href="https://cubik.one/catalog/diy-kits/balcony-planter-set-2/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
+        </div>
+        <div class="product-card" data-anim>
+            <div class="prod-img-wrap">
+                <img src="assets/images/products/cat-castle/main.jpeg" alt="Cat Castle" class="prod-img prod-img-main" loading="lazy">
+                <img src="assets/images/products/cat-castle/hover.jpeg" alt="Cat Castle — alternate view" class="prod-img prod-img-hover" loading="lazy">
+            </div>
+            <h3 class="prod-name">Cat Castle</h3>
+            <p class="prod-desc">Modular cat house with a lounging shelf. Cozy—and reconfigurable.</p>
+            <p class="prod-price">from €200</p>
+            <a href="https://cubik.one/catalog/playrooms/cat-house-1/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
+        </div>
+    </div>
+    <div class="products-cta">
+        <a href="https://cubik.one/catalog/" class="btn-primary" target="_blank" rel="noopener noreferrer">Go to store</a>
+    </div>
+</section>
+
 <!-- Hero — 4 rotating 3D models + color picker -->
 <section class="hero" id="hero">
     <div class="hero-content">
         <h1 class="hero-title">cubik.one</h1>
-        <p class="hero-subtitle">Four cubes. Five faces. Endless possibilities.</p>
+        <p class="hero-subtitle">Four cubiks. Five facets. Endless possibilities.</p>
         <div class="hero-canvas-wrap" id="heroCanvasWrap">
             <canvas id="heroCanvas"></canvas>
             <div class="hero-loader" id="heroLoader">Loading models…</div>
@@ -49,50 +100,51 @@
         <p class="color-label" id="colorLabel">Gray</p>
         <div class="hero-actions">
             <a href="#products" class="btn-primary">Buy</a>
-            <a href="#faces" class="btn-link">Learn more ›</a>
+            <a href="#facets" class="btn-link">Learn more ›</a>
         </div>
     </div>
 </section>
 
-<!-- Faces -->
-<section class="section faces" id="faces">
-    <h2 class="section-title">Five faces.<br>Infinite ideas.</h2>
-    <div class="faces-grid">
-        <div class="face-card" data-anim>
-            <img src="assets/images/faces/bion/facet-izo.jpg" alt="Bion" class="face-img" loading="lazy">
+<!-- Facets -->
+<section class="section facets" id="facets">
+    <h2 class="section-title">Five facets.<br>Infinite ideas.</h2>
+    <div class="facets-grid">
+        <div class="facet-card" data-anim>
+            <img src="assets/images/facets/bion/facet-izo.jpg" alt="Bion" class="facet-img" loading="lazy">
             <h3>Bion</h3>
             <p>Open lattice structure. Light flows through. Air circulates.</p>
         </div>
-        <div class="face-card" data-anim>
-            <img src="assets/images/faces/void/facet-izo.jpg" alt="Void" class="face-img" loading="lazy">
+        <div class="facet-card" data-anim>
+            <img src="assets/images/facets/void/facet-izo.jpg" alt="Void" class="facet-img" loading="lazy">
             <h3>Void</h3>
             <p>Open frame. Shelves. Niches. Display space.</p>
         </div>
-        <div class="face-card" data-anim>
-            <img src="assets/images/faces/zen/facet.jpg" alt="Zen" class="face-img" loading="lazy">
+        <div class="facet-card" data-anim>
+            <img src="assets/images/facets/zen/facet.jpg" alt="Zen" class="facet-img" loading="lazy">
             <h3>Zen</h3>
             <p>Solid surface with relief. Privacy. Clean lines.</p>
         </div>
-        <div class="face-card" data-anim>
-            <img src="assets/images/faces/flora/facet.jpg" alt="Flora" class="face-img" loading="lazy">
+        <div class="facet-card" data-anim>
+            <img src="assets/images/facets/flora/facet.jpg" alt="Flora" class="facet-img" loading="lazy">
             <h3>Flora</h3>
             <p>Built-in planter. Nature built into the structure.</p>
         </div>
-        <div class="face-card" data-anim>
-            <img src="assets/images/faces/zen2/facet.jpg" alt="Zen/2" class="face-img" loading="lazy">
+        <div class="facet-card" data-anim>
+            <img src="assets/images/facets/zen2/facet.jpg" alt="Zen/2" class="facet-img" loading="lazy">
             <h3>Zen/2</h3>
-            <p>Narrow face for more layout options.</p>
+            <p>Narrow facet for more layout options.</p>
         </div>
     </div>
 </section>
 
-<!-- Assembly — 3D Bion.glb -->
+<!-- Assembly — 3D (demo: mixed face colors; geometry can be per-facet GLBs) -->
 <section class="section assembly" id="assembly">
-    <h2 class="section-title">From faces to cube.</h2>
-    <p class="section-sub">Every face is interchangeable: snap together by hand—no tools—and unlock any design or engineering idea you can imagine.</p>
+    <h2 class="section-title">From facets to cubik.</h2>
+    <p class="section-sub">Every facet is interchangeable: snap together by hand—no tools—and unlock any design or engineering idea you can imagine.</p>
+    <p class="section-sub assembly-mix-note">Mix facets and colors to suit the task—one cubik, your combination.</p>
     <div class="assembly-stage" id="assemblyStage">
-        <canvas id="assemblyCanvas" aria-label="Bion cube assembly animation"></canvas>
-        <p class="assembly-fallback" id="assemblyFallback" hidden>Could not load assets/models/bion.glb — check that the file exists in assets/models.</p>
+        <canvas id="assemblyCanvas" aria-label="Cubik assembly: six interchangeable facets snap in sequence, then the full cubik spins"></canvas>
+        <p class="assembly-fallback" id="assemblyFallback" hidden>Could not load assembly models — check assets/models/bion.glb, void.glb, zen.glb.</p>
     </div>
     <div class="assembly-replay">
         <button type="button" class="btn-primary" id="assemblyReplayBtn" disabled>Watch assembly again</button>
@@ -107,7 +159,7 @@
         <canvas id="constructionCanvas" aria-label="Modular wall and clips"></canvas>
         <p class="construction-fallback" id="constructionFallback" hidden>Could not load wall models — check void.obj, bion.obj, zen.obj, and clips.obj in assets/models.</p>
     </div>
-    <p class="section-sub construction-note">Clips are reusable: remove and reseat them with the included tweezers—quickly and without fuss. The same cubes and clips combine into new volumes and shapes—play with scale, geometry, and purpose.</p>
+    <p class="section-sub construction-note">Clips are reusable: remove and reseat them with the included tweezers—quickly and without fuss. The same cubiks and clips combine into new volumes and shapes—play with scale, geometry, and purpose.</p>
 </section>
 
 <!-- Material -->
@@ -139,57 +191,6 @@
             </span>
             <p>Rated for extreme temperatures. From −25 °C to +50 °C.</p>
         </div>
-    </div>
-</section>
-
-<!-- Products -->
-<section class="section products" id="products">
-    <h2 class="section-title">Choose your project.</h2>
-    <p class="section-sub">Ready-made setups. For every idea.</p>
-    <div class="products-grid">
-        <div class="product-card" data-anim>
-            <div class="prod-img-wrap">
-                <img src="assets/images/products/table-garden-set/main.jpeg" alt="Table Garden Set 1+2" class="prod-img prod-img-main" loading="lazy">
-                <img src="assets/images/products/table-garden-set/hover.jpg" alt="Table Garden Set 1+2 — alternate view" class="prod-img prod-img-hover" loading="lazy">
-            </div>
-            <h3 class="prod-name">Table Garden Set 1+2</h3>
-            <p class="prod-desc">Tiered vertical garden—mini gardens on every level. Greenery and compositions in a compact footprint.</p>
-            <p class="prod-price">from €55</p>
-            <a href="https://cubik.one/catalog/mini-gardens/mini-planter-set-20-cubiks/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
-        </div>
-        <div class="product-card" data-anim>
-            <div class="prod-img-wrap prod-img-dark">
-                <img src="assets/images/products/balcony-planter-set-2/main.png" alt="Balcony planter set #2" class="prod-img prod-img-main" loading="lazy">
-                <img src="assets/images/products/balcony-planter-set-2/hover.png" alt="Balcony planter set #2 — alternate view" class="prod-img prod-img-hover" loading="lazy">
-            </div>
-            <h3 class="prod-name">Balcony planter set #2</h3>
-            <p class="prod-desc">Compact modular planters for balconies. Bold floral arrangements.</p>
-            <p class="prod-price">from €120</p>
-            <a href="https://cubik.one/catalog/diy-kits/balcony-planter-set-2/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
-        </div>
-        <div class="product-card" data-anim>
-            <div class="prod-img-wrap">
-                <img src="assets/images/products/cat-castle/main.jpeg" alt="Cat Castle" class="prod-img prod-img-main" loading="lazy">
-                <img src="assets/images/products/cat-castle/hover.jpeg" alt="Cat Castle — alternate view" class="prod-img prod-img-hover" loading="lazy">
-            </div>
-            <h3 class="prod-name">Cat Castle</h3>
-            <p class="prod-desc">Modular cat house with a lounging shelf. Cozy—and reconfigurable.</p>
-            <p class="prod-price">from €200</p>
-            <a href="https://cubik.one/catalog/playrooms/cat-house-1/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
-        </div>
-        <div class="product-card" data-anim>
-            <div class="prod-img-wrap">
-                <img src="assets/images/products/modular-balcony-garden/main.jpg" alt="Modular balcony garden system" class="prod-img prod-img-main" loading="lazy">
-                <img src="assets/images/products/modular-balcony-garden/hover.jpg" alt="Modular balcony garden system — alternate view" class="prod-img prod-img-hover" loading="lazy">
-            </div>
-            <h3 class="prod-name">Modular balcony garden system</h3>
-            <p class="prod-desc">Modular system for balcony gardens. Scalable wall structure for terrace and yard.</p>
-            <p class="prod-price">from €260</p>
-            <a href="https://cubik.one/catalog/works-by-our-users/modular-balcony-garden-system/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
-        </div>
-    </div>
-    <div class="products-cta">
-        <a href="https://cubik.one/catalog/" class="btn-primary" target="_blank" rel="noopener noreferrer">Go to store</a>
     </div>
 </section>
 

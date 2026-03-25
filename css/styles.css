@@ -256,6 +256,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     margin: 0 auto;
 }
 
+/* Якоря не прячутся под фиксированный nav */
+section[id] {
+    scroll-margin-top: calc(var(--nav-h) + 12px);
+}
+
 /* =============================================
    Products
    ============================================= */
@@ -372,16 +377,16 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 
 /* =============================================
-   Faces
+   Facets
    ============================================= */
-.faces { max-width: 1080px; }
-.faces-grid {
+.facets { max-width: 1080px; }
+.facets-grid {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     gap: 20px;
     margin-top: 64px;
 }
-.face-card {
+.facet-card {
     text-align: center;
     padding: 0 0 24px;
     border-radius: 20px;
@@ -390,19 +395,19 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     opacity: 0;
     transform: translateY(30px);
 }
-.face-img {
+.facet-img {
     width: 100%;
     aspect-ratio: 1 / 1;
     object-fit: cover;
     background: #fff;
 }
-.face-card h3 {
+.facet-card h3 {
     font-size: 20px;
     font-weight: 600;
     margin-top: 16px;
     padding: 0 12px;
 }
-.face-card p {
+.facet-card p {
     font-size: 13px;
     color: var(--c-text2);
     margin-top: 8px;
@@ -419,6 +424,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     background: #fff;
 }
 
+.assembly-mix-note {
+    max-width: 40rem;
+    margin: 20px auto 0;
+    color: var(--c-text2);
+    font-size: 0.95rem;
+    line-height: 1.55;
+}
+
 .assembly-stage {
     width: 100%;
     max-width: 720px;
@@ -432,6 +445,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     width: 100%;
     height: 100%;
     touch-action: none;
+}
+#assemblyCanvas.is-assembly-preparing {
+    opacity: 0;
+    pointer-events: none;
 }
 /* display:flex breaks [hidden] — without :not([hidden]) text stays over canvas */
 .assembly-fallback[hidden] {
@@ -585,7 +602,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    Responsive
    ============================================= */
 @media (max-width: 1024px) {
-    .faces-grid { grid-template-columns: repeat(3, 1fr); }
+    .facets-grid { grid-template-columns: repeat(3, 1fr); }
     .mat-grid   { grid-template-columns: repeat(3, 1fr); }
 }
 
@@ -622,7 +639,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
     .products-grid { grid-template-columns: 1fr; max-width: 480px; margin-left: auto; margin-right: auto; }
     .prod-img-wrap { aspect-ratio: 4 / 3; }
-    .faces-grid    { grid-template-columns: repeat(2, 1fr); }
+    .facets-grid    { grid-template-columns: repeat(2, 1fr); }
     .mat-grid      { grid-template-columns: repeat(2, 1fr); }
     .section { padding: var(--section-pad-y) 18px; }
     .hero-canvas-wrap { aspect-ratio: 2 / 1; }
@@ -630,7 +647,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 
 @media (max-width: 480px) {
-    .faces-grid { grid-template-columns: 1fr; max-width: 320px; margin-left: auto; margin-right: auto; }
+    .facets-grid { grid-template-columns: 1fr; max-width: 320px; margin-left: auto; margin-right: auto; }
     .mat-grid   { grid-template-columns: 1fr; max-width: 320px; margin-left: auto; margin-right: auto; }
     .hero-canvas-wrap { aspect-ratio: 3 / 2; }
 }
