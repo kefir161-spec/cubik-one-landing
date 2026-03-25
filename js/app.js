@@ -37,11 +37,8 @@ const heroTL = gsap.timeline({ defaults: { ease: 'power3.out' } });
 heroTL
     .to('.hero-eyebrow', { opacity: 1, y: 0, duration: 0.45 })
     .to('.hero-title', { opacity: 1, y: 0, duration: 0.52 }, '-=0.28')
-    .to('.hero-subtitle', { opacity: 1, y: 0, duration: 0.44 }, '-=0.34')
     .to('.hero-trust', { opacity: 1, y: 0, duration: 0.4 }, '-=0.3')
-    .to('.hero-actions', { opacity: 1, y: 0, duration: 0.38 }, '-=0.32')
-    .to('.hero-use-cases', { opacity: 1, y: 0, duration: 0.34 }, '-=0.34')
-    .to('.hero-visual', { opacity: 1, y: 0, duration: 0.52 }, '-=0.42')
+    .to('.hero-visual', { opacity: 1, y: 0, duration: 0.52 }, '-=0.38')
     .to('.hero-canvas-wrap', { scale: 1, duration: 0.62, ease: 'power2.out' }, '-=0.48');
 
 // =============================================
@@ -77,7 +74,11 @@ const sharedMaterial = new THREE.MeshStandardMaterial({
 });
 
 /** Базовый масштаб hero-модели: больше значение → крупнее cubik в кадре */
-const MODEL_SCALE = 7.4;
+const MODEL_SCALE = 7.35;
+/** Турнтейбл: только внешняя группа крутится по Y; наклон — отдельная дочерняя группа */
+const HERO_ROT_SPEED = -0.0075;
+/** Наклон как на референсе: чуть сверху, видна верхняя грань (турнтейбл по центру) */
+const HERO_BASE_TILT_X = 0.3;
 
 const modelFiles = [
     { file: './assets/models/bion.glb', fixGeometry: false, format: 'gltf' },
@@ -153,8 +154,9 @@ function buildHeroModelGroup(obj, fixGeometry = false) {
     return group;
 }
 
-/** Корневая группа: все варианты cubik в одной точке; виден только выбранный — крупно в кадре */
+/** Внешняя группа: только Y (турнтейбл). Дети: tilt → меши (центр вращения — центр куба) */
 let heroCompositionRoot = null;
+let heroTiltGroup = null;
 
 /** Стартовый cubik: 0 Bion, 1 Void, 2 Zen, 3 Zen/2 */
 const HERO_DEFAULT_FACET_INDEX = 2;
@@ -184,13 +186,17 @@ function layoutHeroSingleCubikMode(groups) {
         }
         heroCompositionRoot = null;
     }
+    heroTiltGroup = null;
 
     heroCompositionRoot = new THREE.Group();
     heroCompositionRoot.rotation.order = 'YXZ';
 
+    heroTiltGroup = new THREE.Group();
+    heroTiltGroup.rotation.x = HERO_BASE_TILT_X;
+    heroCompositionRoot.add(heroTiltGroup);
+
     groups.forEach((g) => {
-        heroCompositionRoot.add(g);
-        groundHeroGroupOnY(g);
+        heroTiltGroup.add(g);
     });
 
     scene.add(heroCompositionRoot);
@@ -246,7 +252,7 @@ function setHeroFacetFocus(index, opts = {}) {
 
     if (!next) return;
 
-    groundHeroGroupOnY(next);
+    next.position.set(0, 0, 0);
     fitHeroCamera([next], { tight: true });
 
     if (animate) {
@@ -284,8 +290,9 @@ function fitHeroCamera(groups, opts = {}) {
     if (!groups.length || !camera) return;
 
     const tight = opts.tight === true;
-    const padding = tight ? 1.05 : 1.18;
-    const minDist = tight ? 6.5 : 24;
+    /** Запас под вращение и наклон без обрезки в канвасе */
+    const padding = tight ? 1.32 : 1.18;
+    const minDist = tight ? 7.8 : 24;
 
     let minX = Infinity;
     let maxX = -Infinity;
@@ -328,7 +335,7 @@ function fitHeroCamera(groups, opts = {}) {
     const distZ = (spanZ * padding) / (2 * tanHalfV);
     const dist = Math.max(distV, distH, distZ, minDist);
 
-    const yLift = tight ? spanY * 0.04 : spanY * 0.07;
+    const yLift = tight ? spanY * 0.072 : spanY * 0.07;
     camera.position.set(center.x, center.y + yLift, center.z + dist);
     camera.lookAt(center.x, center.y, center.z);
     camera.updateProjectionMatrix();
@@ -383,26 +390,7 @@ function resizeRenderer() {
 resizeRenderer();
 window.addEventListener('resize', resizeRenderer);
 
-canvasWrap?.addEventListener('mousemove', (e) => {
-    const r = canvasWrap.getBoundingClientRect();
-    const w = r.width || 1;
-    const h = r.height || 1;
-    const nx = ((e.clientX - r.left) / w) * 2 - 1;
-    const ny = ((e.clientY - r.top) / h) * 2 - 1;
-    heroParallaxTargetY = nx * 0.11;
-    heroParallaxTargetX = -ny * 0.07;
-});
-canvasWrap?.addEventListener('mouseleave', () => {
-    heroParallaxTargetX = 0;
-    heroParallaxTargetY = 0;
-});
-
 let heroRotationY = 0;
-const HERO_ROT_SPEED = 0.0075;
-let heroParallaxTargetX = 0;
-let heroParallaxTargetY = 0;
-let heroParallaxX = 0;
-let heroParallaxY = 0;
 
 let asmRenderer;
 let asmScene;
@@ -417,16 +405,17 @@ function getAssemblyCameraFitVectors() {
     const r0 = asmModelRoot.userData.assembledBoundingRadius;
     if (r0 == null || !isFinite(r0) || r0 <= 0) return null;
 
-    const padding = 1.22;
+    /** >1 — отодвигаем камеру: куб целиком в кадре при вращении после пошаговой сборки */
+    const padding = 1.26;
     const r = r0 * padding;
     const vHalf = THREE.MathUtils.degToRad(asmCamera.fov * 0.5);
     const distV = r / Math.tan(vHalf);
     const distH = r / (Math.tan(vHalf) * Math.max(asmCamera.aspect, 0.001));
-    const dist = Math.max(distV, distH, 0.5);
+    const dist = Math.max(distV, distH, 0.5) * 1.04;
 
     return {
         dist,
-        pos: new THREE.Vector3(0, 0.22, dist),
+        pos: new THREE.Vector3(0, 0.32, dist),
         look: new THREE.Vector3(0, 0, 0),
         near: Math.max(0.02, dist * 0.02),
         far: Math.max(200, dist * 4),
@@ -498,16 +487,16 @@ const CONS_WALL_ROT_FAST = CONS_WALL_ROT_NORMAL * 2.6;
 (function animate() {
     requestAnimationFrame(animate);
     heroRotationY += HERO_ROT_SPEED;
-    heroParallaxX += (heroParallaxTargetX - heroParallaxX) * 0.065;
-    heroParallaxY += (heroParallaxTargetY - heroParallaxY) * 0.065;
     if (heroCompositionRoot) {
-        heroCompositionRoot.rotation.y = heroRotationY + heroParallaxY;
-        heroCompositionRoot.rotation.x = heroParallaxX;
+        heroCompositionRoot.rotation.y = heroRotationY;
+        heroCompositionRoot.rotation.x = 0;
+        heroCompositionRoot.rotation.z = 0;
     }
     renderer.render(scene, camera);
     if (asmRenderer && asmScene && asmCamera) {
         if (asmAssemblyComplete && asmModelRoot) {
-            asmModelRoot.rotation.y += 0.0056;
+            asmModelRoot.rotation.y -= 0.0056;
+            asmCamera.lookAt(0, 0, 0);
         }
         asmRenderer.render(asmScene, asmCamera);
     }
@@ -633,7 +622,6 @@ gsap.utils.toArray('[data-anim]').forEach(el => {
 const asmCanvas = document.getElementById('assemblyCanvas');
 const asmStage = document.getElementById('assemblyStage');
 const asmFallback = document.getElementById('assemblyFallback');
-const assemblyReplayBtn = document.getElementById('assemblyReplayBtn');
 
 let asmBuildTL = null;
 /** После загрузки куба для сборки — для кнопки «ещё раз» */
@@ -1756,7 +1744,7 @@ function initAssemblyViewer() {
     asmScene = new THREE.Scene();
     asmScene.background = new THREE.Color(0xffffff);
 
-    asmCamera = new THREE.PerspectiveCamera(42, 1, 0.08, 200);
+    asmCamera = new THREE.PerspectiveCamera(46, 1, 0.08, 200);
     asmCamera.position.set(0, 0, 5.5);
 
     asmRenderer = new THREE.WebGLRenderer({
@@ -1795,9 +1783,12 @@ function initAssemblyViewer() {
         const h = asmStage.clientHeight;
         if (w < 2 || h < 2) return;
         asmRenderer.setSize(w, h, false);
-        asmCamera.aspect = w/h;
+        asmCamera.aspect = w / h;
         asmCamera.updateProjectionMatrix();
-        if (!asmBuildTL) updateAssemblyCameraFit();
+        const tlBusy = Boolean(asmBuildTL?.isActive?.());
+        if (!tlBusy) {
+            updateAssemblyCameraFit();
+        }
     }
     resizeAsm();
     window.addEventListener('resize', resizeAsm);
@@ -1947,8 +1938,6 @@ function initAssemblyViewer() {
                 assemblyMacroPlan = buildAssemblyMacroPlan(meshes, asmModelRoot);
 
                 assemblyMeshesRef = meshes;
-                assemblyReplayBtn?.removeAttribute('disabled');
-                assemblyReplayBtn?.removeAttribute('aria-disabled');
 
                 const asmScrollST = ScrollTrigger.create({
                     trigger: '#assembly',
@@ -1983,10 +1972,17 @@ function initAssemblyViewer() {
 
 initAssemblyViewer();
 
-assemblyReplayBtn?.addEventListener('click', () => {
+function replayAssemblyAnimation() {
     if (!assemblyMeshesRef?.length) return;
     resetAssemblyToExploded(assemblyMeshesRef);
     playAssemblyBuild(assemblyMeshesRef);
+}
+
+asmStage?.addEventListener('click', replayAssemblyAnimation);
+asmStage?.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    replayAssemblyAnimation();
 });
 
 // =============================================

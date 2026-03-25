@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css?v=9">
+    <link rel="stylesheet" href="css/styles.css?v=15">
 </head>
 <body>
 
@@ -36,24 +36,13 @@
     <div class="hero-inner">
         <div class="hero-copy">
             <p class="hero-eyebrow">cubik.one</p>
-            <h1 class="hero-title">Modular cubiks you snap together—planters, tables, shelving, and more.</h1>
-            <p class="hero-subtitle">Interchangeable facets, tool-free assembly, and a premium composite built for indoors and out. Reconfigure whenever your space or idea changes.</p>
+            <h1 class="hero-title">Modular cubiks to build anything</h1>
             <ul class="hero-trust" aria-label="Product highlights">
                 <li>Tool-free assembly</li>
                 <li>Outdoor-ready</li>
                 <li>Up to 1.5 t load</li>
                 <li>Recyclable</li>
             </ul>
-            <div class="hero-actions">
-                <a href="#facets" class="btn-primary">Explore the system</a>
-                <a href="https://cubik.one/catalog/" class="btn-secondary" target="_blank" rel="noopener noreferrer">Shop cubiks</a>
-            </div>
-            <div class="hero-use-cases" aria-label="Example uses">
-                <span class="use-chip">Planters</span>
-                <span class="use-chip">Tables</span>
-                <span class="use-chip">Pet spaces</span>
-                <span class="use-chip">Shelving</span>
-            </div>
         </div>
         <div class="hero-visual" id="heroVisual">
             <div class="hero-canvas-wrap" id="heroCanvasWrap">
@@ -119,12 +108,9 @@
     <h2 class="section-title">From facets to cubik.</h2>
     <p class="section-sub">Every facet is interchangeable: snap together by hand—no tools—and unlock any design or engineering idea you can imagine.</p>
     <p class="section-sub assembly-mix-note">Mix facets and colors to suit the task—one cubik, your combination.</p>
-    <div class="assembly-stage" id="assemblyStage">
+    <div class="assembly-stage assembly-stage--interactive" id="assemblyStage" role="button" tabindex="0" aria-label="Cubik assembly animation — tap to replay">
         <canvas id="assemblyCanvas" aria-label="Cubik assembly: six interchangeable facets snap in sequence, then the full cubik spins"></canvas>
         <p class="assembly-fallback" id="assemblyFallback" hidden>Could not load assembly models — check assets/models/bion.glb, void.glb, zen.glb.</p>
-    </div>
-    <div class="assembly-replay">
-        <button type="button" class="btn-primary" id="assemblyReplayBtn" disabled>Watch assembly again</button>
     </div>
 </section>
 
@@ -136,7 +122,6 @@
         <canvas id="constructionCanvas" aria-label="Modular wall and clips"></canvas>
         <p class="construction-fallback" id="constructionFallback" hidden>Could not load wall models — check void.obj, bion.obj, zen.obj, and clips.obj in assets/models.</p>
     </div>
-    <p class="section-sub construction-note">Clips are reusable: remove and reseat them with the included tweezers—quickly and without fuss. The same cubiks and clips combine into new volumes and shapes—play with scale, geometry, and purpose.</p>
 </section>
 
 <!-- Material -->
@@ -171,11 +156,32 @@
     </div>
 </section>
 
-<!-- Products (shop) — directly before 3D builder -->
-<section class="section products" id="products">
-    <h2 class="section-title">Choose your project.</h2>
-    <p class="section-sub">Ready-made setups. For every idea.</p>
-    <div class="products-grid">
+<!-- 3D editor — after material -->
+<section class="section builder-promo" id="builder">
+    <div class="builder-promo-inner">
+        <div class="builder-promo-text" data-anim>
+            <p class="builder-promo-lead">Create your own design</p>
+            <a href="https://cubik.one/builder/" class="btn-primary" target="_blank" rel="noopener noreferrer">Open editor</a>
+        </div>
+        <div class="builder-promo-video-wrap" data-anim>
+            <video
+                class="builder-promo-video"
+                src="assets/media/video/builder-plug.mp4?v=2"
+                autoplay
+                muted
+                loop
+                playsinline
+                preload="auto"
+                aria-label="cubik.one 3D editor preview"
+            ></video>
+        </div>
+    </div>
+</section>
+
+<!-- Products (shop) — project grid скрыт до готовности контента -->
+<section class="section products products--cta-only" id="products">
+    <h2 class="section-title">Or choose your project.</h2>
+    <div class="products-grid products-grid--hidden" aria-hidden="true">
         <div class="product-card" data-anim>
             <div class="prod-img-wrap">
                 <img src="assets/images/products/modular-green-wall-planter/main.png" alt="Modular Green Wall Planter" class="prod-img prod-img-main" loading="lazy">
@@ -218,29 +224,7 @@
         </div>
     </div>
     <div class="products-cta">
-        <a href="https://cubik.one/catalog/" class="btn-primary" target="_blank" rel="noopener noreferrer">Go to store</a>
-    </div>
-</section>
-
-<!-- 3D Builder promo -->
-<section class="section builder-promo" id="builder">
-    <div class="builder-promo-inner">
-        <div class="builder-promo-text" data-anim>
-            <p class="builder-promo-lead">Design a one-of-a-kind structure with our 3D editor.</p>
-            <a href="https://cubik.one/builder/" class="btn-primary" target="_blank" rel="noopener noreferrer">Open editor</a>
-        </div>
-        <div class="builder-promo-video-wrap" data-anim>
-            <video
-                class="builder-promo-video"
-                src="assets/media/video/builder-plug.mp4?v=2"
-                autoplay
-                muted
-                loop
-                playsinline
-                preload="auto"
-                aria-label="cubik.one 3D editor preview"
-            ></video>
-        </div>
+        <a href="https://cubik.one/catalog/" class="btn-primary" target="_blank" rel="noopener noreferrer">Go to shop</a>
     </div>
 </section>
 
@@ -266,6 +250,6 @@
     }
 }
 </script>
-<script type="module" src="js/app.js?v=8"></script>
+<script type="module" src="js/app.js?v=16"></script>
 </body>
 </html>
