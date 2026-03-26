@@ -95,15 +95,61 @@ const dracoHero = new DRACOLoader();
 dracoHero.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
 const heroGltfLoader = new GLTFLoader();
 heroGltfLoader.setDRACOLoader(dracoHero);
-let modelsLoaded = 0;
 
-function onModelReady() {
-    modelsLoaded++;
-    if (modelsLoaded >= modelFiles.length) {
-        const groups = loadedModels.filter(Boolean);
-        layoutHeroSingleCubikMode(groups);
+let heroLayoutInitialized = false;
+
+function scheduleRemainingHeroModels() {
+    const run = () => {
+        modelFiles.forEach((_, i) => {
+            if (i === HERO_DEFAULT_FACET_INDEX) return;
+            loadHeroModelAt(i);
+        });
+    };
+    if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(run, { timeout: 2500 });
+    } else {
+        setTimeout(run, 0);
+    }
+}
+
+function onHeroModelLoaded(index) {
+    if (!heroLayoutInitialized) {
+        if (index !== HERO_DEFAULT_FACET_INDEX) return;
+        layoutHeroSingleCubikMode();
         setupHeroFacetPicker();
+        heroLayoutInitialized = true;
         loaderEl?.classList.add('hidden');
+        scheduleRemainingHeroModels();
+    } else if (heroTiltGroup && loadedModels[index]) {
+        const g = loadedModels[index];
+        heroTiltGroup.add(g);
+        g.visible = index === heroFacetIndex;
+    }
+    updateHeroFacetTabAvailability();
+}
+
+function loadHeroModelAt(index) {
+    const { file, fixGeometry, format } = modelFiles[index];
+    if (format === 'gltf') {
+        heroGltfLoader.load(
+            file,
+            (gltf) => {
+                loadedModels[index] = buildHeroModelGroup(gltf.scene, fixGeometry);
+                onHeroModelLoaded(index);
+            },
+            undefined,
+            () => loadHeroFallbackBox(index)
+        );
+    } else {
+        objLoader.load(
+            file,
+            (obj) => {
+                loadedModels[index] = buildHeroModelGroup(obj, fixGeometry);
+                onHeroModelLoaded(index);
+            },
+            undefined,
+            () => loadHeroFallbackBox(index)
+        );
     }
 }
 
@@ -175,9 +221,9 @@ function groundHeroGroupOnY(g) {
     g.position.y -= box.min.y;
 }
 
-function layoutHeroSingleCubikMode(groups) {
-    const n = groups.length;
-    if (n === 0) return;
+function layoutHeroSingleCubikMode() {
+    const hasAny = loadedModels.some(Boolean);
+    if (!hasAny) return;
 
     if (heroCompositionRoot) {
         scene.remove(heroCompositionRoot);
@@ -195,18 +241,18 @@ function layoutHeroSingleCubikMode(groups) {
     heroTiltGroup.rotation.x = HERO_BASE_TILT_X;
     heroCompositionRoot.add(heroTiltGroup);
 
-    groups.forEach((g) => {
-        heroTiltGroup.add(g);
+    loadedModels.forEach((g) => {
+        if (g) heroTiltGroup.add(g);
     });
 
     scene.add(heroCompositionRoot);
     const startIdx = HERO_DEFAULT_FACET_INDEX;
     heroFacetIndex = startIdx;
-    groups.forEach((g, j) => {
-        g.visible = j === startIdx;
+    loadedModels.forEach((g, j) => {
+        if (g) g.visible = j === startIdx;
     });
     syncHeroFacetChrome(startIdx);
-    const active = groups[startIdx];
+    const active = loadedModels[startIdx];
     if (active) {
         fitHeroCamera([active], { tight: true });
         runHeroAssemblyEntrance([active]);
@@ -244,10 +290,9 @@ function setHeroFacetFocus(index, opts = {}) {
     heroFacetIndex = index;
     syncHeroFacetChrome(index);
 
-    const groups = loadedModels.filter(Boolean);
-    const next = groups[index];
-    groups.forEach((g, j) => {
-        g.visible = j === index;
+    const next = loadedModels[index];
+    loadedModels.forEach((g, j) => {
+        if (g) g.visible = j === index;
     });
 
     if (!next) return;
@@ -271,16 +316,25 @@ function setHeroFacetFocus(index, opts = {}) {
     }
 }
 
+function updateHeroFacetTabAvailability() {
+    document.querySelectorAll('#heroFacetPicker .facet-tab').forEach((btn, i) => {
+        const loaded = !!loadedModels[i];
+        btn.disabled = !loaded;
+        btn.setAttribute('aria-disabled', loaded ? 'false' : 'true');
+    });
+}
+
 function setupHeroFacetPicker() {
     const tabs = document.querySelectorAll('#heroFacetPicker .facet-tab');
     if (!tabs.length) return;
     tabs.forEach((btn) => {
         btn.addEventListener('click', () => {
             const i = Number.parseInt(btn.dataset.facetIndex, 10);
-            if (!Number.isFinite(i)) return;
+            if (!Number.isFinite(i) || !loadedModels[i]) return;
             setHeroFacetFocus(i, { animate: true });
         });
     });
+    updateHeroFacetTabAvailability();
 }
 
 /**
@@ -344,32 +398,10 @@ function fitHeroCamera(groups, opts = {}) {
 function loadHeroFallbackBox(index) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), sharedMaterial.clone());
     loadedModels[index] = buildHeroModelGroup(mesh, false);
-    onModelReady();
+    onHeroModelLoaded(index);
 }
 
-modelFiles.forEach(({ file, fixGeometry, format }, index) => {
-    if (format === 'gltf') {
-        heroGltfLoader.load(
-            file,
-            (gltf) => {
-                loadedModels[index] = buildHeroModelGroup(gltf.scene, fixGeometry);
-                onModelReady();
-            },
-            undefined,
-            () => loadHeroFallbackBox(index)
-        );
-    } else {
-        objLoader.load(
-            file,
-            (obj) => {
-                loadedModels[index] = buildHeroModelGroup(obj, fixGeometry);
-                onModelReady();
-            },
-            undefined,
-            () => loadHeroFallbackBox(index)
-        );
-    }
-});
+loadHeroModelAt(HERO_DEFAULT_FACET_INDEX);
 
 function resizeRenderer() {
     const w = canvasWrap.clientWidth;
@@ -379,12 +411,8 @@ function resizeRenderer() {
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     if (heroCompositionRoot) {
-        const groups = loadedModels.filter(Boolean);
-        const active = groups[heroFacetIndex] ?? groups[0];
+        const active = loadedModels[heroFacetIndex];
         if (active) fitHeroCamera([active], { tight: true });
-    } else if (modelsLoaded >= modelFiles.length) {
-        const groups = loadedModels.filter(Boolean);
-        if (groups.length) fitHeroCamera(groups);
     }
 }
 resizeRenderer();
@@ -2153,6 +2181,14 @@ function initConstructionWall() {
     const CUBIK_GRAY = 0x7d7f7d;
     const CLIP_WHITE = 0xf2f2f2;
 
+    /**
+     * Поджатие крыльев по ширине — только макро-клипса (CONS_CLIP_MACRO_SLOW_DUR).
+     * После rotClipUniform (π/2, π/2, 0) ширина в локальной Z.
+     */
+    const CLIP_LATERAL_SQUEEZE_MIN = 0.82;
+    /** Доля медленной фазы посадки, за которую сжимаемся к минимуму */
+    const CLIP_LATERAL_SQUEEZE_IN_FRAC = 0.42;
+
     function addClipBuildThenInsert(tl, mesh, tp, facet, startAt) {
         const p = mesh.position;
         if (facet === 'front') {
@@ -2654,6 +2690,8 @@ function initConstructionWall() {
                     consCamera.updateProjectionMatrix();
                 }
                 [...clipMeshes, ...backClipMeshes, ...leftClipMeshes, ...rightClipMeshes].forEach((m) => {
+                    gsap.killTweensOf(m.scale);
+                    m.scale.set(1, 1, 1);
                     const mat = m.material;
                     if (mat?.isMeshStandardMaterial) {
                         gsap.killTweensOf(mat);
@@ -2844,6 +2882,7 @@ function initConstructionWall() {
                     }
                     pM.x = tpMx;
                     pM.y = tpMy;
+                    macroClip.scale.set(1, 1, 1);
                     consCamera.fov = CONS_CLIP_MACRO_FOV;
                     consCamera.updateProjectionMatrix();
                     updateConsCameraRideClip(macroClip);
@@ -2881,6 +2920,19 @@ function initConstructionWall() {
                         ease: 'power2.out',
                     },
                     macroSlowT0
+                );
+
+                const macroSqIn = CONS_CLIP_MACRO_SLOW_DUR * CLIP_LATERAL_SQUEEZE_IN_FRAC;
+                const macroSqOut = Math.max(CONS_CLIP_MACRO_SLOW_DUR - macroSqIn, 0.001);
+                consBuildTL.to(
+                    macroClip.scale,
+                    { z: CLIP_LATERAL_SQUEEZE_MIN, duration: macroSqIn, ease: 'power2.in' },
+                    macroSlowT0
+                );
+                consBuildTL.to(
+                    macroClip.scale,
+                    { z: 1, duration: macroSqOut, ease: 'power2.out' },
+                    macroSlowT0 + macroSqIn
                 );
 
                 consBuildTL.add(() => {

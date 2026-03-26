@@ -308,6 +308,17 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     border-color: rgba(0, 0, 0, 0.22);
     background: rgba(0, 0, 0, 0.04);
 }
+.facet-tab:disabled,
+.facet-tab[aria-disabled="true"] {
+    opacity: 0.42;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+.facet-tab.active:disabled {
+    opacity: 1;
+    cursor: default;
+    pointer-events: auto;
+}
 
 .hero-color-row {
     margin-top: 18px;
