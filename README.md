@@ -21,6 +21,8 @@ A single-page promo site for the **cubik.one** modular cubiks line: products, fa
 
 Dependencies load from CDN (jsDelivr); the project stays portable and easy to deploy.
 
+**Node.js / npm are not required** — there is no bundler and no `package.json`. Everything runs in the browser as static files.
+
 ---
 
 ## Project layout
@@ -37,8 +39,6 @@ Dependencies load from CDN (jsDelivr); the project stays portable and easy to de
 ```
 
 Asset paths are relative to the site root — works on any static host or GitHub Pages.
-
-**Assembly check (optional):** after `npm install`, run `npm run test:assembly` — verifies `assets/facets/*.glb` load and produce a sane merged mesh (filters junk geometry).
 
 ---
 
