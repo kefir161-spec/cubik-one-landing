@@ -6,7 +6,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 gsap.registerPlugin(ScrollTrigger);
-console.log('%c[app.js v85] LOADED', 'color:lime;font-weight:bold;font-size:14px');
+console.log('%c[app.js v86] LOADED', 'color:lime;font-weight:bold;font-size:14px');
 
 /** Должна совпадать с проверкой после загрузки assembly: глобальный ScrollTrigger.refresh() сдвигает все триггеры и может вызвать onToggle(false) у соседних секций без последующего onToggle(true). */
 function isSectionInPlayViewport(sectionEl) {
@@ -17,15 +17,16 @@ function isSectionInPlayViewport(sectionEl) {
 }
 
 /**
- * Совпадает с ScrollTrigger #assembly: start "top 70%", end "bottom 25%" (как в initAssemblyViewer).
+ * Совпадает с ScrollTrigger #assemblyStage: start "top 80%", end "bottom 20%".
  * Нужен, когда onEnter не вызывается при создании триггера (модель догрузилась уже в зоне).
  */
 function isAssemblyScrollRangeApprox(sectionEl) {
     if (!sectionEl) return false;
-    const r = sectionEl.getBoundingClientRect();
+    const el = document.getElementById('assemblyStage') || sectionEl;
+    const r = el.getBoundingClientRect();
     const vh = window.innerHeight || 1;
     if (r.height <= 0 || r.width <= 0) return false;
-    return r.top <= vh * 0.7 && r.bottom > vh * 0.25;
+    return r.top <= vh * 0.8 && r.bottom > vh * 0.2;
 }
 
 // =============================================
@@ -2425,16 +2426,14 @@ function initAssemblyViewer() {
                     assemblyLeaveDebounce = setTimeout(() => {
                         assemblyLeaveDebounce = null;
                         if (!asmScrollST || asmScrollST.isActive) return;
-                        const sec = document.getElementById('assembly');
-                        if (sec && (isAssemblyScrollRangeApprox(sec) || isSectionInPlayViewport(sec))) return;
                         resetAssemblyToExploded(meshes);
-                    }, 150);
+                    }, 120);
                 }
 
                 asmScrollST = ScrollTrigger.create({
-                    trigger: '#assembly',
-                    start: 'top 70%',
-                    end: 'bottom 25%',
+                    trigger: '#assemblyStage',
+                    start: 'top 80%',
+                    end: 'bottom 20%',
                     onEnter: () => playAssemblyBuild(meshes),
                     onEnterBack: () => playAssemblyBuild(meshes),
                     onLeave: assemblySafeReset,
@@ -3762,12 +3761,12 @@ function initConstructionWall() {
              */
             function shouldAllowConstructionAutoplay() {
                 if (window.location.hash === '#construction') return true;
-                const sec = document.getElementById('construction');
+                const sec = document.getElementById('constructionStage');
                 if (!sec) return false;
                 const r = sec.getBoundingClientRect();
                 const vh = window.innerHeight || 1;
                 if (window.scrollY < 20 && r.top > vh * 0.42) return false;
-                return true;
+                return r.top <= vh * 0.82;
             }
 
             let consScrollRetryRaf = null;
@@ -3807,15 +3806,11 @@ function initConstructionWall() {
                 consPauseDebounceTimer = setTimeout(() => {
                     consPauseDebounceTimer = null;
                     if (consScrollST?.isActive) return;
-                    const sec = document.getElementById('construction');
-                    if (sec && isSectionInPlayViewport(sec)) return;
                     pauseConstructionSection();
                 }, CONS_PAUSE_DEBOUNCE_MS);
             }
 
-            /** Вход в зону / восстановление после refresh: всегда с нуля (playWallAnim сам делает reset) */
             function enqueueConstructionPlay() {
-                if (!shouldAllowConstructionAutoplay()) return;
                 if (consPlayEnqueueRaf != null) return;
                 consPlayEnqueueRaf = requestAnimationFrame(() => {
                     consPlayEnqueueRaf = null;
@@ -3837,10 +3832,9 @@ function initConstructionWall() {
             }
 
             consScrollST = ScrollTrigger.create({
-                trigger: '#construction',
-                /** Ниже, чем 70%: меньше шансов «уже в зоне» при первом кадре с куском секции внизу экрана */
-                start: 'top 88%',
-                end: 'bottom 25%',
+                trigger: '#constructionStage',
+                start: 'top 80%',
+                end: 'bottom 20%',
                 onEnter: () => {
                     cancelConstructionPauseDebounce();
                     consConstructionVisible = true;
@@ -3875,11 +3869,6 @@ function initConstructionWall() {
                     if (consScrollST) {
                         consConstructionVisible = Boolean(consScrollST.isActive);
                         syncConstructionIfStuck(consScrollST);
-                    }
-                    const consSec = document.getElementById('construction');
-                    if (consSec && !consBuildTL && !consWallComplete && isSectionInPlayViewport(consSec)) {
-                        consConstructionVisible = true;
-                        playWallAnim();
                     }
                 });
             });
