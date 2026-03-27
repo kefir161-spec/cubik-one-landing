@@ -6,7 +6,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 gsap.registerPlugin(ScrollTrigger);
-console.log('%c[app.js v82] LOADED', 'color:lime;font-weight:bold;font-size:14px');
+console.log('%c[app.js v83] LOADED', 'color:lime;font-weight:bold;font-size:14px');
 
 /** Должна совпадать с проверкой после загрузки assembly: глобальный ScrollTrigger.refresh() сдвигает все триггеры и может вызвать onToggle(false) у соседних секций без последующего onToggle(true). */
 function isSectionInPlayViewport(sectionEl) {
@@ -2418,19 +2418,17 @@ function initAssemblyViewer() {
 
                 assemblyMeshesRef = meshes;
 
-                /** Сразу после create + глобальный refresh часто дают ложный onLeave → reset → mesh.visible=false → белый canvas. */
-                const assemblySTCreatedAt = performance.now();
-                const ASSEMBLY_LEAVE_GUARD_MS = 900;
                 let assemblyLeaveDebounce = null;
                 let asmScrollST = null;
                 function assemblySafeReset() {
-                    if (performance.now() - assemblySTCreatedAt < ASSEMBLY_LEAVE_GUARD_MS) return;
                     clearTimeout(assemblyLeaveDebounce);
                     assemblyLeaveDebounce = setTimeout(() => {
                         assemblyLeaveDebounce = null;
                         if (!asmScrollST || asmScrollST.isActive) return;
+                        const sec = document.getElementById('assembly');
+                        if (sec && (isAssemblyScrollRangeApprox(sec) || isSectionInPlayViewport(sec))) return;
                         resetAssemblyToExploded(meshes);
-                    }, 100);
+                    }, 150);
                 }
 
                 asmScrollST = ScrollTrigger.create({
