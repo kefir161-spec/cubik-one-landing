@@ -2863,7 +2863,7 @@ function initConstructionWall() {
         const h = consStage.clientHeight;
         if (w < 2 || h < 2) return;
         applyConsPixelRatio();
-        consRenderer.setSize(w, h, false);
+        consRenderer.setSize(w, h);
         consCamera.aspect = w / h;
         consCamera.updateProjectionMatrix();
         if (!consWallRoot?.userData?.consClipMacroActive) {
@@ -2871,7 +2871,14 @@ function initConstructionWall() {
         }
     }
     resizeCons();
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => resizeCons());
+    });
     window.addEventListener('resize', resizeCons);
+    if (typeof ResizeObserver !== 'undefined') {
+        const consResizeObserver = new ResizeObserver(() => resizeCons());
+        consResizeObserver.observe(consStage);
+    }
 
     const loadObj = (url) =>
         new Promise((resolve, reject) => {
