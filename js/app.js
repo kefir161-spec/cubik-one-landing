@@ -6,7 +6,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 gsap.registerPlugin(ScrollTrigger);
-console.log('%c[app.js v83] LOADED', 'color:lime;font-weight:bold;font-size:14px');
+console.log('%c[app.js v84] LOADED', 'color:lime;font-weight:bold;font-size:14px');
 
 /** Должна совпадать с проверкой после загрузки assembly: глобальный ScrollTrigger.refresh() сдвигает все триггеры и может вызвать onToggle(false) у соседних секций без последующего onToggle(true). */
 function isSectionInPlayViewport(sectionEl) {
@@ -3767,7 +3767,7 @@ function initConstructionWall() {
                 const r = sec.getBoundingClientRect();
                 const vh = window.innerHeight || 1;
                 if (window.scrollY < 20 && r.top > vh * 0.42) return false;
-                return r.top <= vh * 0.62;
+                return r.top <= vh * 0.9;
             }
 
             let consScrollRetryRaf = null;
@@ -3807,6 +3807,8 @@ function initConstructionWall() {
                 consPauseDebounceTimer = setTimeout(() => {
                     consPauseDebounceTimer = null;
                     if (consScrollST?.isActive) return;
+                    const sec = document.getElementById('construction');
+                    if (sec && isSectionInPlayViewport(sec)) return;
                     pauseConstructionSection();
                 }, CONS_PAUSE_DEBOUNCE_MS);
             }
