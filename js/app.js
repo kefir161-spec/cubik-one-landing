@@ -6,7 +6,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 gsap.registerPlugin(ScrollTrigger);
-console.log('%c[app.js v90] LOADED', 'color:lime;font-weight:bold;font-size:14px');
+console.log('%c[app.js v91] LOADED', 'color:lime;font-weight:bold;font-size:14px');
 
 /** Должна совпадать с проверкой после загрузки assembly: глобальный ScrollTrigger.refresh() сдвигает все триггеры и может вызвать onToggle(false) у соседних секций без последующего onToggle(true). */
 function isSectionInPlayViewport(sectionEl) {
@@ -2442,14 +2442,8 @@ function initAssemblyViewer() {
                 }
 
                 function assemblyOnLeave() {
-                    requestAnimationFrame(() => {
-                        requestAnimationFrame(() => {
-                            if (asmScrollST?.isActive) return;
-                            const stage = document.getElementById('assemblyStage');
-                            if (stage && isStageScrollZoneApprox(stage)) return;
-                            resetAssemblyToExploded(meshes);
-                        });
-                    });
+                    cancelAssemblyScrollPlayRaf();
+                    resetAssemblyToExploded(meshes);
                 }
 
                 function scheduleAssemblyPlayFromScroll() {
@@ -2493,6 +2487,17 @@ function initAssemblyViewer() {
                         asmPlayEnqueueRaf = null;
                     }
                 };
+                const asmGlobalRefreshHandler = () => {
+                    if (!asmScrollST || !meshes?.length) return;
+                    if (!asmScrollST.isActive) return;
+                    if (asmAssemblyComplete) return;
+                    if (asmBuildTL?.isActive()) return;
+                    requestAnimationFrame(() => {
+                        if (!asmScrollST?.isActive || !assemblyShouldPlayNow()) return;
+                        playAssemblyBuild(meshes);
+                    });
+                };
+                ScrollTrigger.addEventListener('refresh', asmGlobalRefreshHandler);
                 ScrollTrigger.addEventListener?.('scrollEnd', recoverAssemblyIfStuckOnScrollEnd);
                 /**
                  * Если модель догрузилась, когда пользователь уже в зоне секции, onEnter не сработает.
@@ -3836,6 +3841,10 @@ function initConstructionWall() {
 
             /** Выход из зоны: стоп GSAP + сброс + кадр */
             function pauseConstructionSection() {
+                if (consPlayEnqueueRaf != null) {
+                    cancelAnimationFrame(consPlayEnqueueRaf);
+                    consPlayEnqueueRaf = null;
+                }
                 consConstructionVisible = false;
                 resetWallAnim();
                 if (consRenderer && consScene && consCamera) {
@@ -3849,16 +3858,9 @@ function initConstructionWall() {
                 return Boolean(consScrollST?.isActive || isStageScrollZoneApprox(stage));
             }
 
-            /** Двойной rAF: не сбрасываем в «белый» кадр при одном кадре рассинхрона ScrollTrigger */
+            /** Сразу: иначе таймлайн и idle крутятся в фоне, пока ждём rAF / guard по rect */
             function constructionOnLeave() {
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        if (consScrollST?.isActive) return;
-                        const stage = document.getElementById('constructionStage');
-                        if (stage && isStageScrollZoneApprox(stage)) return;
-                        pauseConstructionSection();
-                    });
-                });
+                pauseConstructionSection();
             }
 
             function enqueueConstructionPlay() {
