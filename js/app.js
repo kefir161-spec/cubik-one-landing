@@ -2305,7 +2305,7 @@ function initAssemblyViewer() {
         const h = asmStage.clientHeight;
         if (w < 2 || h < 2) return;
         applyAsmPixelRatio();
-        asmRenderer.setSize(w, h, false);
+        asmRenderer.setSize(w, h);
         asmCamera.aspect = w / h;
         asmCamera.updateProjectionMatrix();
         const tlBusy = Boolean(asmBuildTL?.isActive?.());
@@ -2314,7 +2314,14 @@ function initAssemblyViewer() {
         }
     }
     resizeAsm();
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => resizeAsm());
+    });
     window.addEventListener('resize', resizeAsm);
+    if (typeof ResizeObserver !== 'undefined') {
+        const asmResizeObserver = new ResizeObserver(() => resizeAsm());
+        asmResizeObserver.observe(asmStage);
+    }
 
     const dracoLoader = new DRACOLoader();
     dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
