@@ -6,7 +6,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 gsap.registerPlugin(ScrollTrigger);
-console.log('%c[app.js v87] LOADED', 'color:lime;font-weight:bold;font-size:14px');
+console.log('%c[app.js v88] LOADED', 'color:lime;font-weight:bold;font-size:14px');
 
 /** Должна совпадать с проверкой после загрузки assembly: глобальный ScrollTrigger.refresh() сдвигает все триггеры и может вызвать onToggle(false) у соседних секций без последующего onToggle(true). */
 function isSectionInPlayViewport(sectionEl) {
@@ -17,15 +17,16 @@ function isSectionInPlayViewport(sectionEl) {
 }
 
 /**
- * Совпадает с ScrollTrigger на stage: start "top 80%", end "bottom 20%".
- * Используется для fallback после загрузки и для защиты от ложного onLeave после refresh().
+ * Совпадает с ScrollTrigger на stage: start "top bottom" / end "bottom top" (любое пересечение с вьюпортом).
+ * Узкая зона top 80% давала белый холст при прокрутке снизу вверх: карточка уже в кадре, а триггер ещё «не вошёл».
  */
 function isStageScrollZoneApprox(stageEl) {
     if (!stageEl) return false;
     const r = stageEl.getBoundingClientRect();
     const vh = window.innerHeight || 1;
+    const vw = window.innerWidth || 1;
     if (r.height <= 0 || r.width <= 0) return false;
-    return r.top <= vh * 0.8 && r.bottom > vh * 0.2;
+    return r.bottom > 0 && r.top < vh && r.right > 0 && r.left < vw;
 }
 
 /** Совпадает с триггером #assemblyStage (см. isStageScrollZoneApprox). */
@@ -2445,8 +2446,8 @@ function initAssemblyViewer() {
 
                 asmScrollST = ScrollTrigger.create({
                     trigger: '#assemblyStage',
-                    start: 'top 80%',
-                    end: 'bottom 20%',
+                    start: 'top bottom',
+                    end: 'bottom top',
                     onEnter: () => playAssemblyBuild(meshes),
                     onEnterBack: () => playAssemblyBuild(meshes),
                     onLeave: assemblySafeReset,
@@ -3774,12 +3775,12 @@ function initConstructionWall() {
              */
             function shouldAllowConstructionAutoplay() {
                 if (window.location.hash === '#construction') return true;
-                const sec = document.getElementById('constructionStage');
-                if (!sec) return false;
-                const r = sec.getBoundingClientRect();
+                const stage = document.getElementById('constructionStage');
+                if (!stage) return false;
+                const r = stage.getBoundingClientRect();
                 const vh = window.innerHeight || 1;
                 if (window.scrollY < 20 && r.top > vh * 0.42) return false;
-                return r.top <= vh * 0.82;
+                return isStageScrollZoneApprox(stage);
             }
 
             let consScrollRetryRaf = null;
@@ -3848,8 +3849,8 @@ function initConstructionWall() {
 
             consScrollST = ScrollTrigger.create({
                 trigger: '#constructionStage',
-                start: 'top 80%',
-                end: 'bottom 20%',
+                start: 'top bottom',
+                end: 'bottom top',
                 onEnter: () => {
                     cancelConstructionPauseDebounce();
                     consConstructionVisible = true;
