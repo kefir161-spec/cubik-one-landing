@@ -6,7 +6,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 gsap.registerPlugin(ScrollTrigger);
-console.log('%c[app.js v89] LOADED', 'color:lime;font-weight:bold;font-size:14px');
+console.log('%c[app.js v90] LOADED', 'color:lime;font-weight:bold;font-size:14px');
 
 /** Должна совпадать с проверкой после загрузки assembly: глобальный ScrollTrigger.refresh() сдвигает все триггеры и может вызвать onToggle(false) у соседних секций без последующего onToggle(true). */
 function isSectionInPlayViewport(sectionEl) {
@@ -859,6 +859,8 @@ let asmModelRoot;
 let asmAssemblyComplete = false;
 /** Экземпляр ScrollTrigger для #assemblyStage — idle-вращение только пока блок в зоне */
 let asmStageScrollTrigger = null;
+/** Сбрасывает отложенный play с ScrollTrigger (задаётся в initAssemblyViewer) */
+let cancelAssemblyScrollPlayRaf = () => {};
 /** План макро-съёмок (две смежные пары фасетов) — после загрузки bion.glb */
 let assemblyMacroPlan = null;
 
@@ -1929,6 +1931,7 @@ function resetAssemblyToExploded(meshes) {
 
 function playAssemblyBuild(meshes) {
     if (!meshes?.length) return;
+    cancelAssemblyScrollPlayRaf();
     if (asmBuildTL) asmBuildTL.kill();
     applyExplodedPositions(meshes);
     meshes.forEach((m) => {
@@ -2427,18 +2430,41 @@ function initAssemblyViewer() {
                 assemblyMeshesRef = meshes;
 
                 let asmScrollST = null;
-                /** Сразу гасим таймлайн и уходим в exploded (все грани скрыты), если блок реально вне вьюпорта */
-                function assemblyOnLeave() {
+                let asmPlayEnqueueRaf = null;
+                /**
+                 * Двойной rAF: после быстрой прокрутки isActive на один кадр может быть false при видимом stage.
+                 * Проверяем и isActive, и геометрию — иначе onEnter сработал, а play отменился → белый холст.
+                 */
+                function assemblyShouldPlayNow() {
                     const stage = document.getElementById('assemblyStage');
-                    if (stage && isStageScrollZoneApprox(stage)) return;
-                    resetAssemblyToExploded(meshes);
+                    if (!stage) return false;
+                    return Boolean(asmScrollST?.isActive || isStageScrollZoneApprox(stage));
+                }
+
+                function assemblyOnLeave() {
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            if (asmScrollST?.isActive) return;
+                            const stage = document.getElementById('assemblyStage');
+                            if (stage && isStageScrollZoneApprox(stage)) return;
+                            resetAssemblyToExploded(meshes);
+                        });
+                    });
                 }
 
                 function scheduleAssemblyPlayFromScroll() {
-                    requestAnimationFrame(() => {
-                        if (!asmScrollST?.isActive) return;
-                        playAssemblyBuild(meshes);
+                    if (asmPlayEnqueueRaf != null) {
+                        cancelAnimationFrame(asmPlayEnqueueRaf);
+                        asmPlayEnqueueRaf = null;
+                    }
+                    const outerAsm = requestAnimationFrame(() => {
+                        asmPlayEnqueueRaf = requestAnimationFrame(() => {
+                            asmPlayEnqueueRaf = null;
+                            if (!assemblyShouldPlayNow()) return;
+                            playAssemblyBuild(meshes);
+                        });
                     });
+                    asmPlayEnqueueRaf = outerAsm;
                 }
 
                 asmScrollST = ScrollTrigger.create({
@@ -2451,6 +2477,23 @@ function initAssemblyViewer() {
                     onLeaveBack: assemblyOnLeave,
                 });
                 asmStageScrollTrigger = asmScrollST;
+
+                function recoverAssemblyIfStuckOnScrollEnd() {
+                    requestAnimationFrame(() => {
+                        if (!asmScrollST || !meshes?.length) return;
+                        if (!assemblyShouldPlayNow()) return;
+                        if (asmBuildTL?.isActive()) return;
+                        if (asmAssemblyComplete) return;
+                        playAssemblyBuild(meshes);
+                    });
+                }
+                cancelAssemblyScrollPlayRaf = () => {
+                    if (asmPlayEnqueueRaf != null) {
+                        cancelAnimationFrame(asmPlayEnqueueRaf);
+                        asmPlayEnqueueRaf = null;
+                    }
+                };
+                ScrollTrigger.addEventListener?.('scrollEnd', recoverAssemblyIfStuckOnScrollEnd);
                 /**
                  * Если модель догрузилась, когда пользователь уже в зоне секции, onEnter не сработает.
                  * Добавляем isAssemblyScrollRangeApprox + короткий слушатель scroll после загрузки.
@@ -3800,11 +3843,22 @@ function initConstructionWall() {
                 }
             }
 
-            /** Немедленный сброс при уходе: не крутим стенку и клипсы в фоне; при ложном leave после refresh rect ещё пересекает вьюпорт */
-            function constructionOnLeave() {
+            function constructionShouldPlayNow() {
                 const stage = document.getElementById('constructionStage');
-                if (stage && isStageScrollZoneApprox(stage)) return;
-                pauseConstructionSection();
+                if (!stage) return false;
+                return Boolean(consScrollST?.isActive || isStageScrollZoneApprox(stage));
+            }
+
+            /** Двойной rAF: не сбрасываем в «белый» кадр при одном кадре рассинхрона ScrollTrigger */
+            function constructionOnLeave() {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        if (consScrollST?.isActive) return;
+                        const stage = document.getElementById('constructionStage');
+                        if (stage && isStageScrollZoneApprox(stage)) return;
+                        pauseConstructionSection();
+                    });
+                });
             }
 
             function enqueueConstructionPlay() {
@@ -3812,11 +3866,14 @@ function initConstructionWall() {
                     cancelAnimationFrame(consPlayEnqueueRaf);
                     consPlayEnqueueRaf = null;
                 }
-                consPlayEnqueueRaf = requestAnimationFrame(() => {
-                    consPlayEnqueueRaf = null;
-                    if (!consScrollST?.isActive) return;
-                    playWallAnim();
+                const outerCons = requestAnimationFrame(() => {
+                    consPlayEnqueueRaf = requestAnimationFrame(() => {
+                        consPlayEnqueueRaf = null;
+                        if (!constructionShouldPlayNow()) return;
+                        playWallAnim();
+                    });
                 });
+                consPlayEnqueueRaf = outerCons;
             }
 
             /**
@@ -3825,11 +3882,18 @@ function initConstructionWall() {
              */
             function syncConstructionIfStuck(self) {
                 if (!shouldAllowConstructionAutoplay()) return;
-                if (!self?.isActive) return;
+                const stage = document.getElementById('constructionStage');
+                const inZone = self?.isActive || (stage && isStageScrollZoneApprox(stage));
+                if (!inZone) return;
                 consConstructionVisible = true;
                 if (consBuildTL) return;
                 if (consWallComplete) return;
                 enqueueConstructionPlay();
+            }
+
+            function recoverConstructionIfStuckOnScrollEnd() {
+                if (!consScrollST) return;
+                syncConstructionIfStuck(consScrollST);
             }
 
             consScrollST = ScrollTrigger.create({
@@ -3858,6 +3922,7 @@ function initConstructionWall() {
                 syncConstructionIfStuck(consScrollST);
             };
             ScrollTrigger.addEventListener('refresh', consGlobalRefreshHandler);
+            ScrollTrigger.addEventListener?.('scrollEnd', recoverConstructionIfStuckOnScrollEnd);
             window.addEventListener('scroll', onConsWindowScrollRetry, { passive: true });
 
             requestAnimationFrame(() => {
