@@ -6,7 +6,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 gsap.registerPlugin(ScrollTrigger);
-console.log('%c[app.js v88] LOADED', 'color:lime;font-weight:bold;font-size:14px');
+console.log('%c[app.js v89] LOADED', 'color:lime;font-weight:bold;font-size:14px');
 
 /** Должна совпадать с проверкой после загрузки assembly: глобальный ScrollTrigger.refresh() сдвигает все триггеры и может вызвать onToggle(false) у соседних секций без последующего onToggle(true). */
 function isSectionInPlayViewport(sectionEl) {
@@ -857,6 +857,8 @@ let asmScene;
 let asmCamera;
 let asmModelRoot;
 let asmAssemblyComplete = false;
+/** Экземпляр ScrollTrigger для #assemblyStage — idle-вращение только пока блок в зоне */
+let asmStageScrollTrigger = null;
 /** План макро-съёмок (две смежные пары фасетов) — после загрузки bion.glb */
 let assemblyMacroPlan = null;
 
@@ -960,7 +962,7 @@ const CONS_WALL_ROT_FAST = CONS_WALL_ROT_NORMAL * 2.6;
         }
     }
     if (asmRenderer && asmScene && asmCamera) {
-        if (asmAssemblyComplete && asmModelRoot) {
+        if (asmAssemblyComplete && asmModelRoot && asmStageScrollTrigger?.isActive) {
             asmModelRoot.rotation.y -= 0.0056;
             asmCamera.lookAt(0, 0, 0);
         }
@@ -2424,35 +2426,31 @@ function initAssemblyViewer() {
 
                 assemblyMeshesRef = meshes;
 
-                let assemblyLeaveDebounce = null;
                 let asmScrollST = null;
-                function assemblySafeReset() {
-                    clearTimeout(assemblyLeaveDebounce);
-                    assemblyLeaveDebounce = setTimeout(() => {
-                        assemblyLeaveDebounce = null;
-                        if (!asmScrollST || asmScrollST.isActive) return;
-                        const stage = document.getElementById('assemblyStage');
-                        if (stage && isStageScrollZoneApprox(stage)) return;
-                        resetAssemblyToExploded(meshes);
-                    }, 150);
+                /** Сразу гасим таймлайн и уходим в exploded (все грани скрыты), если блок реально вне вьюпорта */
+                function assemblyOnLeave() {
+                    const stage = document.getElementById('assemblyStage');
+                    if (stage && isStageScrollZoneApprox(stage)) return;
+                    resetAssemblyToExploded(meshes);
                 }
 
-                const asmRefreshGuard = () => {
-                    if (!asmScrollST?.isActive) return;
-                    clearTimeout(assemblyLeaveDebounce);
-                    assemblyLeaveDebounce = null;
-                };
-                ScrollTrigger.addEventListener('refresh', asmRefreshGuard);
+                function scheduleAssemblyPlayFromScroll() {
+                    requestAnimationFrame(() => {
+                        if (!asmScrollST?.isActive) return;
+                        playAssemblyBuild(meshes);
+                    });
+                }
 
                 asmScrollST = ScrollTrigger.create({
                     trigger: '#assemblyStage',
                     start: 'top bottom',
                     end: 'bottom top',
-                    onEnter: () => playAssemblyBuild(meshes),
-                    onEnterBack: () => playAssemblyBuild(meshes),
-                    onLeave: assemblySafeReset,
-                    onLeaveBack: assemblySafeReset,
+                    onEnter: scheduleAssemblyPlayFromScroll,
+                    onEnterBack: scheduleAssemblyPlayFromScroll,
+                    onLeave: assemblyOnLeave,
+                    onLeaveBack: assemblyOnLeave,
                 });
+                asmStageScrollTrigger = asmScrollST;
                 /**
                  * Если модель догрузилась, когда пользователь уже в зоне секции, onEnter не сработает.
                  * Добавляем isAssemblyScrollRangeApprox + короткий слушатель scroll после загрузки.
@@ -3802,34 +3800,21 @@ function initConstructionWall() {
                 }
             }
 
-            /**
-             * Не вызывать pause на каждый onLeave — микропрокрутка и ScrollTrigger.refresh()
-             * (аккордеон, resize) дают кратковременный !isActive → анимация «падала».
-             * Пауза только если секция реально вне зоны после задержки; отмена при повторном входе.
-             */
-            const CONS_PAUSE_DEBOUNCE_MS = 420;
-            let consPauseDebounceTimer = null;
-            function cancelConstructionPauseDebounce() {
-                if (consPauseDebounceTimer != null) {
-                    clearTimeout(consPauseDebounceTimer);
-                    consPauseDebounceTimer = null;
-                }
-            }
-            function schedulePauseConstructionSection() {
-                cancelConstructionPauseDebounce();
-                consPauseDebounceTimer = setTimeout(() => {
-                    consPauseDebounceTimer = null;
-                    if (consScrollST?.isActive) return;
-                    const stage = document.getElementById('constructionStage');
-                    if (stage && isStageScrollZoneApprox(stage)) return;
-                    pauseConstructionSection();
-                }, CONS_PAUSE_DEBOUNCE_MS);
+            /** Немедленный сброс при уходе: не крутим стенку и клипсы в фоне; при ложном leave после refresh rect ещё пересекает вьюпорт */
+            function constructionOnLeave() {
+                const stage = document.getElementById('constructionStage');
+                if (stage && isStageScrollZoneApprox(stage)) return;
+                pauseConstructionSection();
             }
 
             function enqueueConstructionPlay() {
-                if (consPlayEnqueueRaf != null) return;
+                if (consPlayEnqueueRaf != null) {
+                    cancelAnimationFrame(consPlayEnqueueRaf);
+                    consPlayEnqueueRaf = null;
+                }
                 consPlayEnqueueRaf = requestAnimationFrame(() => {
                     consPlayEnqueueRaf = null;
+                    if (!consScrollST?.isActive) return;
                     playWallAnim();
                 });
             }
@@ -3852,27 +3837,23 @@ function initConstructionWall() {
                 start: 'top bottom',
                 end: 'bottom top',
                 onEnter: () => {
-                    cancelConstructionPauseDebounce();
                     consConstructionVisible = true;
                     enqueueConstructionPlay();
                 },
                 onEnterBack: () => {
-                    cancelConstructionPauseDebounce();
                     consConstructionVisible = true;
                     enqueueConstructionPlay();
                 },
-                onLeave: schedulePauseConstructionSection,
-                onLeaveBack: schedulePauseConstructionSection,
+                onLeave: constructionOnLeave,
+                onLeaveBack: constructionOnLeave,
             });
 
             consConstructionVisible = Boolean(consScrollST?.isActive);
 
             const consGlobalRefreshHandler = () => {
                 if (!consScrollST) return;
-                /** Не ставить false при refresh — иначе ложный сброс при пересчёте триггеров (аккордеон и т.д.) */
                 if (consScrollST.isActive) {
                     consConstructionVisible = true;
-                    cancelConstructionPauseDebounce();
                 }
                 syncConstructionIfStuck(consScrollST);
             };
