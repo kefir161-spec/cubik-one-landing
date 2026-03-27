@@ -7,18 +7,19 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css?v=16">
+    <link rel="stylesheet" href="css/styles.css?v=45">
+    <link rel="preload" as="image" href="assets/images/banner/Garden/2.jpeg" fetchpriority="high">
 </head>
 <body>
 
 <!-- Navigation -->
 <nav class="nav" id="nav">
     <div class="nav-inner">
-        <a href="#hero" class="nav-logo">
-            <img src="assets/images/brand/logo.jpg" alt="cubik.one" class="nav-logo-img">
+        <a href="#banner" class="nav-logo">
+            <img src="assets/images/brand/logo.png" alt="cubik.one" class="nav-logo-img" width="140" height="28" decoding="async">
         </a>
         <div class="nav-links">
-            <a href="#hero">Overview</a>
+            <a href="#banner">Overview</a>
             <a href="#products">Products</a>
             <a href="#facets">Facets</a>
             <a href="#construction">Build</a>
@@ -31,43 +32,201 @@
     </div>
 </nav>
 
-<!-- Hero — editorial copy + single 3D composition -->
-<section class="hero" id="hero">
-    <div class="hero-inner">
-        <div class="hero-copy">
-            <p class="hero-eyebrow">cubik.one</p>
-            <h1 class="hero-title">Modular cubiks to build anything</h1>
-            <ul class="hero-trust" aria-label="Product highlights">
-                <li>Tool-free assembly</li>
-                <li>Outdoor-ready</li>
-                <li>Up to 1.5 t load</li>
-                <li>Recyclable</li>
-            </ul>
+<!-- Banner — centered visual + headline only -->
+<section class="hero banner" id="banner">
+    <div class="hero-inner hero-inner--centered">
+        <h1 class="hero-title hero-title--hero">Modular space,<br>built by you.</h1>
+        <div class="hero-showcase" id="heroShowcase">
+            <div class="hero-showcase-main">
+                <div class="hero-showcase-frame" data-hero-parallax>
+                    <div class="hero-showcase-parallax">
+                        <img
+                            class="hero-showcase-layer hero-showcase-layer--a is-visible"
+                            src="assets/images/banner/Garden/2.jpeg"
+                            alt="Garden"
+                            width="1600"
+                            height="1200"
+                            fetchpriority="high"
+                            decoding="async"
+                        >
+                        <img
+                            class="hero-showcase-layer hero-showcase-layer--b"
+                            src="assets/images/banner/Garden/2.jpeg"
+                            alt=""
+                            width="1600"
+                            height="1200"
+                            decoding="async"
+                            aria-hidden="true"
+                        >
+                    </div>
+                </div>
+            </div>
+            <div class="hero-float-stack" role="tablist" aria-label="Сценарии использования">
+                <button type="button" class="hero-float hero-float--a" role="tab" aria-selected="true" data-category-index="0">
+                    <span class="hero-float-inner">
+                        <img src="assets/images/banner/Garden/2.jpeg" alt="" width="320" height="240" loading="lazy" decoding="async">
+                        <span class="hero-float-caption">Garden</span>
+                    </span>
+                </button>
+                <button type="button" class="hero-float hero-float--b" role="tab" aria-selected="false" data-category-index="1">
+                    <span class="hero-float-inner">
+                        <img src="assets/images/banner/Interior/Image_202601231409.jpeg" alt="" width="320" height="240" loading="lazy" decoding="async">
+                        <span class="hero-float-caption">Interior</span>
+                    </span>
+                </button>
+                <button type="button" class="hero-float hero-float--c" role="tab" aria-selected="false" data-category-index="2">
+                    <span class="hero-float-inner">
+                        <img src="assets/images/banner/Pet%20house/photo_2026-03-26_13-29-32.jpg" alt="" width="320" height="240" loading="lazy" decoding="async">
+                        <span class="hero-float-caption">Pet house</span>
+                    </span>
+                </button>
+                <button type="button" class="hero-float hero-float--d" role="tab" aria-selected="false" data-category-index="3">
+                    <span class="hero-float-inner">
+                        <img src="assets/images/banner/Public%20space/1%20render%20%20(1).png" alt="" width="320" height="240" loading="lazy" decoding="async">
+                        <span class="hero-float-caption">Public space</span>
+                    </span>
+                </button>
+            </div>
         </div>
-        <div class="hero-visual" id="heroVisual">
-            <div class="hero-canvas-wrap" id="heroCanvasWrap">
+    </div>
+</section>
+
+<!-- Construction / Clips — 3×3 wall + clips -->
+<section class="section construction" id="construction">
+    <h2 class="section-title">Easy to connect<br>with clips.</h2>
+    <div class="section-stage-card">
+        <div class="construction-stage" id="constructionStage">
+            <canvas id="constructionCanvas" aria-label="Modular wall and clips"></canvas>
+            <p class="construction-fallback" id="constructionFallback" hidden>Could not load wall models — check void.obj, bion.obj, zen.obj, and clips.obj in assets/models.</p>
+        </div>
+        <p class="section-sub section-sub--below-stage">Snap it in—done. Scale your build to any size.</p>
+    </div>
+</section>
+
+<!-- Modular 3D hero + material — accordion + cubik (карточка как у Easy to connect) -->
+<section class="section modular-hero" id="material">
+    <h2 class="section-title modular-hero-title">Modular cubiks to<br>build anything</h2>
+    <div class="modular-hero-stage">
+        <div class="modular-hero-inner">
+            <div class="modular-hero-copy">
+                <div class="modular-accordion" id="modularAccordion">
+                <div class="modular-acc-item" data-acc-item>
+                    <button type="button" class="modular-acc-trigger" id="acc-trigger-load" aria-expanded="false" aria-controls="acc-panel-load">
+                        <span class="modular-acc-icon-btn" aria-hidden="true"><span class="modular-acc-plus"></span></span>
+                        <span class="modular-acc-label">1.5 t</span>
+                    </button>
+                    <div class="modular-acc-panel" id="acc-panel-load" role="region" aria-labelledby="acc-trigger-load" aria-hidden="true">
+                        <div class="modular-acc-panel-inner">
+                            <p class="modular-acc-desc">Supports loads up to 1.5 tonnes. Extreme strength.</p>
+                            <div class="modular-acc-media">
+                                <video
+                                    class="modular-acc-video"
+                                    data-acc-video
+                                    muted
+                                    playsinline
+                                    preload="auto"
+                                    loop
+                                    aria-label="Durability — load demonstration"
+                                >
+                                    <source src="assets/media/video/durability.mp4" type="video/mp4">
+                                </video>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modular-acc-item" data-acc-item>
+                    <button type="button" class="modular-acc-trigger" id="acc-trigger-uv" aria-expanded="false" aria-controls="acc-panel-uv">
+                        <span class="modular-acc-icon-btn" aria-hidden="true"><span class="modular-acc-plus"></span></span>
+                        <span class="modular-acc-label">UV</span>
+                    </button>
+                    <div class="modular-acc-panel" id="acc-panel-uv" role="region" aria-labelledby="acc-trigger-uv" aria-hidden="true">
+                        <div class="modular-acc-panel-inner">
+                            <p class="modular-acc-desc">Resistant to UV and all weather. Won’t fade.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modular-acc-item" data-acc-item>
+                    <button type="button" class="modular-acc-trigger" id="acc-trigger-poly" aria-expanded="false" aria-controls="acc-panel-poly">
+                        <span class="modular-acc-icon-btn" aria-hidden="true"><span class="modular-acc-plus"></span></span>
+                        <span class="modular-acc-label modular-acc-label--icon">
+                            <img src="assets/images/material/polymer.svg" alt="" width="28" height="28" decoding="async">
+                            <span>Composite</span>
+                        </span>
+                    </button>
+                    <div class="modular-acc-panel" id="acc-panel-poly" role="region" aria-labelledby="acc-trigger-poly" aria-hidden="true">
+                        <div class="modular-acc-panel-inner">
+                            <p class="modular-acc-desc">Modern premium polymer composite: dense structure, matte warm surface, pleasant to the touch.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modular-acc-item" data-acc-item>
+                    <button type="button" class="modular-acc-trigger" id="acc-trigger-rec" aria-expanded="false" aria-controls="acc-panel-rec">
+                        <span class="modular-acc-icon-btn" aria-hidden="true"><span class="modular-acc-plus"></span></span>
+                        <span class="modular-acc-label modular-acc-label--icon">
+                            <img src="assets/images/material/recycle.svg" alt="" width="28" height="28" decoding="async">
+                            <span>Recyclable</span>
+                        </span>
+                    </button>
+                    <div class="modular-acc-panel" id="acc-panel-rec" role="region" aria-labelledby="acc-trigger-rec" aria-hidden="true">
+                        <div class="modular-acc-panel-inner">
+                            <p class="modular-acc-desc">Fully recyclable. Zero waste.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modular-acc-item" data-acc-item>
+                    <button type="button" class="modular-acc-trigger" id="acc-trigger-temp" aria-expanded="false" aria-controls="acc-panel-temp">
+                        <span class="modular-acc-icon-btn" aria-hidden="true"><span class="modular-acc-plus"></span></span>
+                        <span class="modular-acc-label modular-acc-label--icon">
+                            <img src="assets/images/material/temperature-range.png" alt="" width="28" height="28" decoding="async">
+                            <span>Climate</span>
+                        </span>
+                    </button>
+                    <div class="modular-acc-panel" id="acc-panel-temp" role="region" aria-labelledby="acc-trigger-temp" aria-hidden="true">
+                        <div class="modular-acc-panel-inner">
+                            <p class="modular-acc-desc">Rated for extreme temperatures. From −25 °C to +50 °C.</p>
+                        </div>
+                    </div>
+                </div>
+                </div>
+            </div>
+            <div class="hero-canvas-wrap modular-canvas-wrap" id="heroCanvasWrap">
                 <canvas id="heroCanvas"></canvas>
                 <div class="hero-loader" id="heroLoader">Loading models…</div>
             </div>
-            <p class="hero-facet-benefit" id="heroFacetBenefit">Solid relief surfaces — privacy and clean, calm lines.</p>
-            <div class="hero-facet-picker" id="heroFacetPicker" role="tablist" aria-label="Facet style">
-                <button type="button" class="facet-tab" role="tab" data-facet-index="0" aria-selected="false">Bion</button>
-                <button type="button" class="facet-tab" role="tab" data-facet-index="1" aria-selected="false">Void</button>
-                <button type="button" class="facet-tab active" role="tab" data-facet-index="2" aria-selected="true">Zen</button>
-                <button type="button" class="facet-tab" role="tab" data-facet-index="3" aria-selected="false">Zen/2</button>
-            </div>
-            <div class="hero-color-row">
-                <span class="hero-color-hint">Color</span>
-                <div class="color-picker hero-color-picker" id="colorPicker">
-                    <button type="button" class="swatch" data-color="#7D7F7D" data-name="Gray" aria-label="Gray"><span style="background:#7D7F7D"></span></button>
-                    <button type="button" class="swatch" data-color="#E1B589" data-name="Beige" aria-label="Beige"><span style="background:#E1B589"></span></button>
-                    <button type="button" class="swatch" data-color="#0A6F3C" data-name="Green" aria-label="Green"><span style="background:#0A6F3C"></span></button>
-                    <button type="button" class="swatch active" data-color="#F4F4F4" data-name="White" aria-label="White"><span style="background:#F4F4F4;border:1px solid #d2d2d7"></span></button>
-                    <button type="button" class="swatch" data-color="#0A0A0A" data-name="Black" aria-label="Black"><span style="background:#0A0A0A"></span></button>
+            <div class="modular-controls" id="modularHeroControls">
+                <p class="hero-facet-benefit" id="heroFacetBenefit">Solid relief surfaces — privacy and clean, calm lines.</p>
+                <div class="hero-facet-picker" id="heroFacetPicker" role="tablist" aria-label="Facet style">
+                    <button type="button" class="facet-tab" role="tab" data-facet-index="0" aria-selected="false">Bion</button>
+                    <button type="button" class="facet-tab" role="tab" data-facet-index="1" aria-selected="false">Void</button>
+                    <button type="button" class="facet-tab active" role="tab" data-facet-index="2" aria-selected="true">Zen</button>
+                    <button type="button" class="facet-tab" role="tab" data-facet-index="3" aria-selected="false">Zen/2</button>
                 </div>
-                <p class="color-label hero-color-label" id="colorLabel">White</p>
+                <div class="hero-color-row">
+                    <span class="hero-color-hint">Color</span>
+                    <div class="color-picker hero-color-picker" id="colorPicker">
+                        <button type="button" class="swatch" data-color="#7D7F7D" data-name="Gray" aria-label="Gray"><span style="background:#7D7F7D"></span></button>
+                        <button type="button" class="swatch" data-color="#E1B589" data-name="Beige" aria-label="Beige"><span style="background:#E1B589"></span></button>
+                        <button type="button" class="swatch" data-color="#0A6F3C" data-name="Green" aria-label="Green"><span style="background:#0A6F3C"></span></button>
+                        <button type="button" class="swatch active" data-color="#F4F4F4" data-name="White" aria-label="White"><span style="background:#F4F4F4;border:1px solid #d2d2d7"></span></button>
+                        <button type="button" class="swatch" data-color="#0A0A0A" data-name="Black" aria-label="Black"><span style="background:#0A0A0A"></span></button>
+                    </div>
+                    <p class="color-label hero-color-label" id="colorLabel">White</p>
+                </div>
             </div>
         </div>
+    </div>
+</section>
+
+<!-- Assembly — facets to cubik -->
+<section class="section assembly" id="assembly">
+    <h2 class="section-title">From facets to cubik.</h2>
+    <div class="section-stage-card">
+        <div class="assembly-stage assembly-stage--interactive" id="assemblyStage" role="button" tabindex="0" aria-label="Cubik assembly animation — tap to replay">
+            <canvas id="assemblyCanvas" aria-label="Cubik assembly: six interchangeable facets snap in sequence, then the full cubik spins"></canvas>
+            <p class="assembly-fallback" id="assemblyFallback" hidden>Could not load assembly models — check assets/models/bion.glb, void.glb, zen.glb.</p>
+        </div>
+        <p class="section-sub">Every facet is interchangeable: snap together by hand—no tools—and unlock any design or engineering idea you can imagine.</p>
+        <p class="section-sub assembly-mix-note">Mix facets and colors to suit the task—one cubik, your combination.</p>
     </div>
 </section>
 
@@ -103,60 +262,7 @@
     </div>
 </section>
 
-<!-- Assembly — 3D (demo: mixed face colors; geometry can be per-facet GLBs) -->
-<section class="section assembly" id="assembly">
-    <h2 class="section-title">From facets to cubik.</h2>
-    <p class="section-sub">Every facet is interchangeable: snap together by hand—no tools—and unlock any design or engineering idea you can imagine.</p>
-    <p class="section-sub assembly-mix-note">Mix facets and colors to suit the task—one cubik, your combination.</p>
-    <div class="assembly-stage assembly-stage--interactive" id="assemblyStage" role="button" tabindex="0" aria-label="Cubik assembly animation — tap to replay">
-        <canvas id="assemblyCanvas" aria-label="Cubik assembly: six interchangeable facets snap in sequence, then the full cubik spins"></canvas>
-        <p class="assembly-fallback" id="assemblyFallback" hidden>Could not load assembly models — check assets/models/bion.glb, void.glb, zen.glb.</p>
-    </div>
-</section>
-
-<!-- Construction / Clips — 3×3 wall + clips -->
-<section class="section construction" id="construction">
-    <h2 class="section-title">The clip.<br>Simple connection.</h2>
-    <p class="section-sub">Snap it in—done. Scale your build to any size.</p>
-    <div class="construction-stage" id="constructionStage">
-        <canvas id="constructionCanvas" aria-label="Modular wall and clips"></canvas>
-        <p class="construction-fallback" id="constructionFallback" hidden>Could not load wall models — check void.obj, bion.obj, zen.obj, and clips.obj in assets/models.</p>
-    </div>
-</section>
-
-<!-- Material -->
-<section class="section material" id="material">
-    <h2 class="section-title">Built to<br>last.</h2>
-    <p class="section-sub">A modern premium polymer composite—next-generation material for garden and interior.</p>
-    <div class="mat-grid">
-        <div class="mat-card" data-anim>
-            <span class="mat-stat">1.5 t</span>
-            <p>Supports loads up to 1.5 tonnes. Extreme strength.</p>
-        </div>
-        <div class="mat-card" data-anim>
-            <span class="mat-stat">UV</span>
-            <p>Resistant to UV and all weather. Won’t fade.</p>
-        </div>
-        <div class="mat-card" data-anim>
-            <span class="mat-stat mat-stat-icon" role="img" aria-label="Polymer composite">
-                <img src="assets/images/material/polymer.svg" alt="" width="56" height="56" decoding="async" />
-            </span>
-            <p>Modern premium polymer composite: dense structure, matte warm surface, pleasant to the touch.</p>
-        </div>
-        <div class="mat-card" data-anim>
-            <span class="mat-stat">♻</span>
-            <p>Fully recyclable. Zero waste.</p>
-        </div>
-        <div class="mat-card" data-anim>
-            <span class="mat-stat mat-stat-icon" role="img" aria-label="Operating temperature range">
-                <img src="assets/images/material/temperature-range.png" alt="" width="56" height="56" decoding="async" />
-            </span>
-            <p>Rated for extreme temperatures. From −25 °C to +50 °C.</p>
-        </div>
-    </div>
-</section>
-
-<!-- 3D editor — after material -->
+<!-- 3D editor — after material / modular -->
 <section class="section builder-promo" id="builder">
     <div class="builder-promo-inner">
         <div class="builder-promo-text" data-anim>
@@ -250,6 +356,6 @@
     }
 }
 </script>
-<script type="module" src="js/app.js?v=20"></script>
+<script type="module" src="js/app.js?v=44"></script>
 </body>
 </html>

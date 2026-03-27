@@ -1,10 +1,12 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 gsap.registerPlugin(ScrollTrigger);
+console.log('%c[app.js v76] LOADED', 'color:lime;font-weight:bold;font-size:14px');
 
 /** Должна совпадать с проверкой после загрузки assembly: глобальный ScrollTrigger.refresh() сдвигает все триггеры и может вызвать onToggle(false) у соседних секций без последующего onToggle(true). */
 function isSectionInPlayViewport(sectionEl) {
@@ -31,41 +33,345 @@ navLinks?.querySelectorAll('a').forEach(a => {
 });
 
 // =============================================
-// Hero entrance (editorial column + visual)
+// Hero — crossfade + карточки категорий (автосмена всех фото каждые 5 с)
 // =============================================
 const heroTL = gsap.timeline({ defaults: { ease: 'power3.out' } });
 heroTL
-    .to('.hero-eyebrow', { opacity: 1, y: 0, duration: 0.45 })
-    .to('.hero-title', { opacity: 1, y: 0, duration: 0.52 }, '-=0.28')
-    .to('.hero-trust', { opacity: 1, y: 0, duration: 0.4 }, '-=0.3')
-    .to('.hero-visual', { opacity: 1, y: 0, duration: 0.52 }, '-=0.38')
-    .to('.hero-canvas-wrap', { scale: 1, duration: 0.62, ease: 'power2.out' }, '-=0.48');
+    .to('.hero-title--hero', { opacity: 1, y: 0, duration: 0.55 })
+    .to('.hero-showcase', { opacity: 1, y: 0, duration: 0.52 }, '-=0.32');
+
+function bannerAssetUrl(folder, file) {
+    return ['assets', 'images', 'banner', folder, file].map(encodeURIComponent).join('/');
+}
+
+(function initHeroShowcase() {
+    const showcase = document.getElementById('heroShowcase');
+    if (!showcase) return;
+
+    const layerA = showcase.querySelector('.hero-showcase-layer--a');
+    const layerB = showcase.querySelector('.hero-showcase-layer--b');
+    const floats = showcase.querySelectorAll('.hero-float');
+    const parallax = showcase.querySelector('[data-hero-parallax] .hero-showcase-parallax');
+
+    if (!layerA || !layerB) return;
+
+    const categories = [
+        {
+            folder: 'Garden',
+            label: 'Garden',
+            files: ['2.jpeg', '3 (1).jpeg', 'hf-20260210-145115-85d5663e-480f-468c-b147-8c97ea81ff32.jpeg'],
+        },
+        {
+            folder: 'Interior',
+            label: 'Interior',
+            files: ['Image_202601231409.jpeg'],
+        },
+        {
+            folder: 'Pet house',
+            label: 'Pet house',
+            files: ['photo_2026-03-26_13-29-32.jpg'],
+        },
+        {
+            folder: 'Public space',
+            label: 'Public space',
+            files: ['1 render  (1).png', 'Image_202601231443.jpeg'],
+        },
+    ];
+
+    const slides = [];
+    categories.forEach((cat, categoryIndex) => {
+        cat.files.forEach((file) => {
+            slides.push({
+                src: bannerAssetUrl(cat.folder, file),
+                label: cat.label,
+                categoryIndex,
+            });
+        });
+    });
+
+    let activeIndex = 0;
+    /** True if layer A currently has the visible image (opacity 1). */
+    let visibleIsA = true;
+    let autoplayTimer = null;
+
+    function setFloatState(categoryIndex) {
+        floats.forEach((btn) => {
+            const ci = Number(btn.dataset.categoryIndex);
+            const on = ci === categoryIndex;
+            btn.classList.toggle('is-active', on);
+            btn.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+    }
+
+    function firstSlideIndexForCategory(categoryIndex) {
+        const i = slides.findIndex((s) => s.categoryIndex === categoryIndex);
+        return i >= 0 ? i : 0;
+    }
+
+    function restartAutoplay() {
+        clearInterval(autoplayTimer);
+        autoplayTimer = setInterval(() => {
+            const next = (activeIndex + 1) % slides.length;
+            applySlide(next);
+        }, 5000);
+    }
+
+    function applySlide(index) {
+        if (index === activeIndex || index < 0 || index >= slides.length) return;
+
+        const outgoing = visibleIsA ? layerA : layerB;
+        const incoming = visibleIsA ? layerB : layerA;
+        const { src, label, categoryIndex } = slides[index];
+
+        incoming.removeAttribute('aria-hidden');
+
+        const finalize = () => {
+            incoming.classList.add('is-visible');
+            outgoing.classList.remove('is-visible');
+            visibleIsA = incoming === layerA;
+            activeIndex = index;
+            setFloatState(categoryIndex);
+            incoming.alt = label;
+            outgoing.setAttribute('aria-hidden', 'true');
+        };
+
+        const run = () => {
+            if (incoming.decode) {
+                incoming.decode().then(finalize).catch(finalize);
+            } else {
+                finalize();
+            }
+        };
+
+        function sameImageUrl(a, b) {
+            if (!a || !b) return false;
+            try {
+                return new URL(a, window.location.href).pathname === new URL(b, window.location.href).pathname;
+            } catch {
+                return a === b;
+            }
+        }
+
+        if (sameImageUrl(incoming.getAttribute('src') || incoming.src, src)) {
+            requestAnimationFrame(run);
+            return;
+        }
+
+        incoming.onload = () => {
+            incoming.onload = null;
+            incoming.onerror = null;
+            run();
+        };
+        incoming.onerror = () => {
+            incoming.onload = null;
+            incoming.onerror = null;
+            run();
+        };
+        incoming.src = src;
+    }
+
+    layerA.classList.add('is-visible');
+    layerB.classList.remove('is-visible');
+    layerA.alt = slides[0].label;
+    setFloatState(0);
+    restartAutoplay();
+
+    const hoverMedia = window.matchMedia('(hover: hover) and (pointer: fine)');
+
+    floats.forEach((btn) => {
+        const catIdx = Number(btn.dataset.categoryIndex);
+        if (Number.isNaN(catIdx)) return;
+
+        btn.addEventListener('click', () => {
+            const inCat = slides
+                .map((s, i) => (s.categoryIndex === catIdx ? i : -1))
+                .filter((i) => i >= 0);
+            if (slides[activeIndex].categoryIndex === catIdx && inCat.length > 1) {
+                const curPos = inCat.indexOf(activeIndex);
+                const nextSlide = inCat[(curPos + 1) % inCat.length];
+                applySlide(nextSlide);
+            } else {
+                applySlide(firstSlideIndexForCategory(catIdx));
+            }
+            restartAutoplay();
+        });
+
+        btn.addEventListener('mouseenter', () => {
+            if (hoverMedia.matches) applySlide(firstSlideIndexForCategory(catIdx));
+        });
+    });
+
+    if (parallax && hoverMedia.matches) {
+        showcase.addEventListener('mousemove', (e) => {
+            const r = showcase.getBoundingClientRect();
+            const mx = (e.clientX - r.left) / r.width - 0.5;
+            const my = (e.clientY - r.top) / r.height - 0.5;
+            parallax.style.setProperty('--px', `${mx * 1.2}%`);
+            parallax.style.setProperty('--py', `${my * 0.9}%`);
+        });
+        showcase.addEventListener('mouseleave', () => {
+            parallax.style.setProperty('--px', '0%');
+            parallax.style.setProperty('--py', '0%');
+        });
+    }
+})();
 
 // =============================================
-// Three.js — hero: один выбранный cubik крупно; переключение табами Bion / Void / Zen / Zen/2
+// Modular hero — entrance (editorial column + 3D)
+// =============================================
+const modularHeroTL = gsap.timeline({ defaults: { ease: 'power3.out' } });
+modularHeroTL
+    .to('.modular-accordion', { opacity: 1, y: 0, duration: 0.52 })
+    .to('.modular-canvas-wrap', { opacity: 1, y: 0, scale: 1, duration: 0.62, ease: 'power2.out' }, '-=0.3')
+    .to('.modular-controls', { opacity: 1, y: 0, duration: 0.45 }, '-=0.52');
+
+(function initModularAccordion() {
+    const root = document.getElementById('modularAccordion');
+    if (!root) return;
+
+    const items = root.querySelectorAll('[data-acc-item]');
+    let refreshTimer = null;
+
+    function scheduleScrollTriggerRefresh() {
+        if (typeof ScrollTrigger === 'undefined') return;
+        clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(() => {
+            refreshTimer = null;
+            requestAnimationFrame(() => ScrollTrigger.refresh());
+        }, 420);
+    }
+
+    function setPanelA11y(item, open) {
+        const panel = item.querySelector('.modular-acc-panel');
+        const trig = item.querySelector('.modular-acc-trigger');
+        if (panel) {
+            panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+        }
+        if (trig) {
+            trig.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+    }
+
+    function pauseVideo(item) {
+        const v = item.querySelector('video[data-acc-video]');
+        if (v) {
+            v.pause();
+            v.currentTime = 0;
+        }
+    }
+
+    /** Воспроизведение после открытия панели: muted + playsinline; ждём canplay/loadeddata, иначе play() падает на пустом буфере. */
+    function playVideo(item) {
+        const v = item.querySelector('video[data-acc-video]');
+        if (!v) return;
+        v.muted = true;
+        if ('playsInline' in v) v.playsInline = true;
+
+        const tryPlay = () => {
+            v.play().catch(() => {});
+        };
+
+        if (v.readyState >= 2) {
+            tryPlay();
+            return;
+        }
+        const onReady = () => {
+            v.removeEventListener('canplay', onReady);
+            v.removeEventListener('loadeddata', onReady);
+            tryPlay();
+        };
+        v.addEventListener('canplay', onReady, { once: true });
+        v.addEventListener('loadeddata', onReady, { once: true });
+        if (v.readyState === 0) v.load();
+    }
+
+    items.forEach((item) => {
+        const trigger = item.querySelector('.modular-acc-trigger');
+        if (!trigger) return;
+
+        trigger.addEventListener('click', () => {
+            const opening = !item.classList.contains('is-open');
+            items.forEach((other) => {
+                other.classList.remove('is-open');
+                pauseVideo(other);
+                setPanelA11y(other, false);
+            });
+            if (opening) {
+                item.classList.add('is-open');
+                setPanelA11y(item, true);
+                requestAnimationFrame(() => playVideo(item));
+            }
+            scheduleScrollTriggerRefresh();
+        });
+    });
+
+    const accVideoIo =
+        'IntersectionObserver' in window
+            ? new IntersectionObserver(
+                  (entries) => {
+                      entries.forEach((en) => {
+                          const item = en.target;
+                          if (!item.classList.contains('is-open')) return;
+                          if (en.isIntersecting) {
+                              playVideo(item);
+                          } else {
+                              pauseVideo(item);
+                          }
+                      });
+                  },
+                  { root: null, threshold: 0.15, rootMargin: '0px 0px -5% 0px' }
+              )
+            : null;
+    items.forEach((item) => {
+        if (item.querySelector('video[data-acc-video]')) accVideoIo?.observe(item);
+    });
+})();
+
+// =============================================
+// Three.js — modular hero: cubik + табы Bion / Void / Zen / Zen/2
 // =============================================
 const canvas = document.getElementById('heroCanvas');
 const canvasWrap = document.getElementById('heroCanvasWrap');
 const loaderEl = document.getElementById('heroLoader');
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xffffff);
+let heroScene = null;
+let heroCamera = null;
+let heroRenderer = null;
+let heroRotationY = 0;
+let heroCompositionRoot = null;
 
-const camera = new THREE.PerspectiveCamera(32, 2.5, 0.1, 500);
-camera.position.set(0, 1.2, 34);
+const HERO_ROT_SPEED = -0.0075;
+const objLoader = new OBJLoader();
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.2;
+function cleanMeshGeometry(mesh, fixGeometry) {
+    if (!mesh.isMesh || !mesh.geometry?.isBufferGeometry) return;
+    let g = mesh.geometry;
+    if (fixGeometry) {
+        g = mergeVertices(g, 0.001);
+        g.computeVertexNormals();
+        mesh.geometry = g;
+    }
+}
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+if (canvas && canvasWrap) {
+heroScene = new THREE.Scene();
+heroScene.background = new THREE.Color(0xffffff);
+
+heroCamera = new THREE.PerspectiveCamera(32, 2.5, 0.1, 500);
+heroCamera.position.set(0, 1.2, 34);
+
+heroRenderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true });
+heroRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+heroRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+heroRenderer.toneMappingExposure = 1.2;
+
+heroScene.add(new THREE.AmbientLight(0xffffff, 0.75));
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
 dirLight.position.set(6, 10, 8);
-scene.add(dirLight);
+heroScene.add(dirLight);
 const fill = new THREE.DirectionalLight(0xffffff, 0.3);
 fill.position.set(-5, 3, -4);
-scene.add(fill);
+heroScene.add(fill);
 
 const sharedMaterial = new THREE.MeshStandardMaterial({
     color: 0xf4f4f4,
@@ -75,8 +381,6 @@ const sharedMaterial = new THREE.MeshStandardMaterial({
 
 /** Базовый масштаб hero-модели: больше значение → крупнее cubik в кадре */
 const MODEL_SCALE = 7.35;
-/** Турнтейбл: только внешняя группа крутится по Y; наклон — отдельная дочерняя группа */
-const HERO_ROT_SPEED = -0.0075;
 /** Наклон как на референсе: чуть сверху, видна верхняя грань (турнтейбл по центру) */
 const HERO_BASE_TILT_X = 0.3;
 
@@ -90,7 +394,6 @@ const modelFiles = [
 ];
 
 const loadedModels = new Array(modelFiles.length).fill(null);
-const objLoader = new OBJLoader();
 const dracoHero = new DRACOLoader();
 dracoHero.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
 const heroGltfLoader = new GLTFLoader();
@@ -153,16 +456,6 @@ function loadHeroModelAt(index) {
     }
 }
 
-function cleanMeshGeometry(mesh, fixGeometry) {
-    if (!mesh.isMesh || !mesh.geometry?.isBufferGeometry) return;
-    let g = mesh.geometry;
-    if (fixGeometry) {
-        g = mergeVertices(g, 0.001);
-        g.computeVertexNormals();
-        mesh.geometry = g;
-    }
-}
-
 /**
  * Группа вращается вокруг Y; меш внутри отцентрован в (0,0,0) и без «левого» quaternion из OBJ —
  * тогда все cubiks визуально крутятся в одну сторону с одинаковой скоростью.
@@ -197,11 +490,18 @@ function buildHeroModelGroup(obj, fixGeometry = false) {
     const group = new THREE.Group();
     group.add(obj);
     group.rotation.order = 'YXZ';
+    /** Локальные габариты без вращения турнтейбла — иначе world AABB «дышит» с углом Y и камера прыгает при каждом fit */
+    const fitBox = new THREE.Box3().setFromObject(group);
+    const fitSize = fitBox.getSize(new THREE.Vector3());
+    group.userData.heroFitSpan = {
+        x: Math.max(fitSize.x, 1e-6),
+        y: Math.max(fitSize.y, 1e-6),
+        z: Math.max(fitSize.z, 1e-6),
+    };
     return group;
 }
 
 /** Внешняя группа: только Y (турнтейбл). Дети: tilt → меши (центр вращения — центр куба) */
-let heroCompositionRoot = null;
 let heroTiltGroup = null;
 
 /** Стартовый cubik: 0 Bion, 1 Void, 2 Zen, 3 Zen/2 */
@@ -226,7 +526,7 @@ function layoutHeroSingleCubikMode() {
     if (!hasAny) return;
 
     if (heroCompositionRoot) {
-        scene.remove(heroCompositionRoot);
+        heroScene.remove(heroCompositionRoot);
         while (heroCompositionRoot.children.length) {
             heroCompositionRoot.remove(heroCompositionRoot.children[0]);
         }
@@ -245,7 +545,7 @@ function layoutHeroSingleCubikMode() {
         if (g) heroTiltGroup.add(g);
     });
 
-    scene.add(heroCompositionRoot);
+    heroScene.add(heroCompositionRoot);
     const startIdx = HERO_DEFAULT_FACET_INDEX;
     heroFacetIndex = startIdx;
     loadedModels.forEach((g, j) => {
@@ -254,27 +554,23 @@ function layoutHeroSingleCubikMode() {
     syncHeroFacetChrome(startIdx);
     const active = loadedModels[startIdx];
     if (active) {
-        fitHeroCamera([active], { tight: true });
         runHeroAssemblyEntrance([active]);
     }
 }
 
+/** Без анимации scale 0.22→1 — сразу полный масштаб, как после повторного клика по табу */
 function runHeroAssemblyEntrance(groups) {
-    groups.forEach((g) => g.scale.setScalar(0.22));
+    groups.forEach((g) => {
+        gsap.killTweensOf(g.scale);
+        g.scale.setScalar(1);
+    });
     const active = groups[0];
     if (active) fitHeroCamera([active], { tight: true });
-    gsap.to(groups, {
-        scale: 1,
-        duration: 0.75,
-        ease: 'power3.out',
-        stagger: 0,
-        onComplete: () => {
-            if (active) fitHeroCamera([active], { tight: true });
-        },
-    });
 }
 
 let heroFacetIndex = HERO_DEFAULT_FACET_INDEX;
+/** GSAP-твин смены cubik; kill при быстром переключении табов */
+let heroFacetSwitchTween = null;
 
 function syncHeroFacetChrome(index) {
     const benefitEl = document.getElementById('heroFacetBenefit');
@@ -285,8 +581,8 @@ function syncHeroFacetChrome(index) {
     });
 }
 
-function setHeroFacetFocus(index, opts = {}) {
-    const animate = opts.animate === true;
+function setHeroFacetFocus(index) {
+    const switchedModel = index !== heroFacetIndex;
     heroFacetIndex = index;
     syncHeroFacetChrome(index);
 
@@ -298,22 +594,50 @@ function setHeroFacetFocus(index, opts = {}) {
     if (!next) return;
 
     next.position.set(0, 0, 0);
+    if (heroFacetSwitchTween) {
+        heroFacetSwitchTween.kill();
+        heroFacetSwitchTween = null;
+    }
+
+    if (!switchedModel) {
+        next.scale.setScalar(1);
+        fitHeroCamera([next], { tight: true });
+        return;
+    }
+
+    /**
+     * Видимый «пульс»: нормальный размер → чуть уменьшить → сразу вернуть к 1.
+     * fit только до/после: во время scale камера не двигается — куб реально мельчает и отскакивает.
+     */
+    next.scale.setScalar(1);
     fitHeroCamera([next], { tight: true });
 
-    if (animate) {
-        gsap.killTweensOf(next.scale);
-        next.scale.setScalar(0.92);
-        gsap.to(next.scale, {
-            x: 1,
-            y: 1,
-            z: 1,
-            duration: 0.48,
-            ease: 'power2.out',
-            onUpdate: () => fitHeroCamera([next], { tight: true }),
-        });
-    } else {
-        next.scale.setScalar(1);
-    }
+    const pulse = { s: 1 };
+    const dipS = 0.86;
+
+    heroFacetSwitchTween = gsap.timeline({
+        onComplete: () => {
+            heroFacetSwitchTween = null;
+            next.scale.setScalar(1);
+            fitHeroCamera([next], { tight: true });
+        },
+    });
+    heroFacetSwitchTween.to(pulse, {
+        s: dipS,
+        duration: 0.14,
+        ease: 'power2.in',
+        onUpdate: () => {
+            next.scale.setScalar(pulse.s);
+        },
+    });
+    heroFacetSwitchTween.to(pulse, {
+        s: 1,
+        duration: 0.32,
+        ease: 'power3.out',
+        onUpdate: () => {
+            next.scale.setScalar(pulse.s);
+        },
+    });
 }
 
 function updateHeroFacetTabAvailability() {
@@ -331,7 +655,7 @@ function setupHeroFacetPicker() {
         btn.addEventListener('click', () => {
             const i = Number.parseInt(btn.dataset.facetIndex, 10);
             if (!Number.isFinite(i) || !loadedModels[i]) return;
-            setHeroFacetFocus(i, { animate: true });
+            setHeroFacetFocus(i);
         });
     });
     updateHeroFacetTabAvailability();
@@ -339,14 +663,50 @@ function setupHeroFacetPicker() {
 
 /**
  * Подгоняет камеру под bbox групп. `tight` — один cubik крупно в hero (меньше поля, ближе камера).
+ * Для одной hero-модели используем заранее сохранённые локальные габариты: world AABB при вращении
+ * родителя по Y меняется от кадра к кадру, из-за этого при каждом fit камера «прыгала».
  */
 function fitHeroCamera(groups, opts = {}) {
-    if (!groups.length || !camera) return;
+    if (!groups.length || !heroCamera) return;
 
     const tight = opts.tight === true;
     /** Запас под вращение и наклон без обрезки в канвасе */
     const padding = tight ? 1.32 : 1.18;
+    /** Доп. вертикальный запас: верх граней при tilt+Y-вращении не вылезает из canvas */
+    const paddingV = tight ? padding * 1.12 : padding;
     const minDist = tight ? 7.8 : 24;
+
+    const g0 = groups[0];
+    const u = g0.userData?.heroFitSpan;
+
+    if (groups.length === 1 && u) {
+        g0.updateMatrixWorld(true);
+        const center = new THREE.Vector3();
+        g0.getWorldPosition(center);
+        const s = typeof g0.scale?.x === 'number' ? g0.scale.x : 1;
+        /** Горизонталь после поворота вокруг Y: максимальный размах в XZ не больше hypot локальных dx,dz */
+        const horiz = Math.hypot(u.x * s, u.z * s);
+        const spanX = horiz;
+        const spanY = u.y * s;
+        const spanZ = horiz;
+
+        const vHalf = THREE.MathUtils.degToRad(heroCamera.fov * 0.5);
+        const tanHalfV = Math.tan(vHalf);
+        const tanHalfH = tanHalfV * Math.max(heroCamera.aspect, 0.01);
+
+        const distV = (spanY * paddingV) / (2 * tanHalfV);
+        const distH = (spanX * padding) / (2 * tanHalfH);
+        const distZ = (spanZ * padding) / (2 * tanHalfV);
+        const dist = Math.max(distV, distH, distZ, minDist);
+
+        const yLift = tight ? spanY * 0.072 : spanY * 0.07;
+        /** Сдвиг точки взгляда по Y (tight): меньше |коэфф.| → куб ниже в кадре */
+        const lookYOffset = tight ? -spanY * 0.14 : 0;
+        heroCamera.position.set(center.x, center.y + yLift, center.z + dist);
+        heroCamera.lookAt(center.x, center.y + lookYOffset, center.z);
+        heroCamera.updateProjectionMatrix();
+        return;
+    }
 
     let minX = Infinity;
     let maxX = -Infinity;
@@ -380,19 +740,21 @@ function fitHeroCamera(groups, opts = {}) {
     const spanY = maxY - minY;
     const spanZ = maxZ - minZ;
 
-    const vHalf = THREE.MathUtils.degToRad(camera.fov * 0.5);
+    const vHalf = THREE.MathUtils.degToRad(heroCamera.fov * 0.5);
     const tanHalfV = Math.tan(vHalf);
-    const tanHalfH = tanHalfV * Math.max(camera.aspect, 0.01);
+    const tanHalfH = tanHalfV * Math.max(heroCamera.aspect, 0.01);
 
-    const distV = (spanY * padding) / (2 * tanHalfV);
+    const padV = tight ? padding * 1.12 : padding;
+    const distV = (spanY * padV) / (2 * tanHalfV);
     const distH = (spanX * padding) / (2 * tanHalfH);
     const distZ = (spanZ * padding) / (2 * tanHalfV);
     const dist = Math.max(distV, distH, distZ, minDist);
 
     const yLift = tight ? spanY * 0.072 : spanY * 0.07;
-    camera.position.set(center.x, center.y + yLift, center.z + dist);
-    camera.lookAt(center.x, center.y, center.z);
-    camera.updateProjectionMatrix();
+    const lookYOffset = tight ? -spanY * 0.14 : 0;
+    heroCamera.position.set(center.x, center.y + yLift, center.z + dist);
+    heroCamera.lookAt(center.x, center.y + lookYOffset, center.z);
+    heroCamera.updateProjectionMatrix();
 }
 
 function loadHeroFallbackBox(index) {
@@ -403,22 +765,22 @@ function loadHeroFallbackBox(index) {
 
 loadHeroModelAt(HERO_DEFAULT_FACET_INDEX);
 
-function resizeRenderer() {
+function resizeHeroRenderer() {
     const w = canvasWrap.clientWidth;
     const h = canvasWrap.clientHeight;
     if (w === 0 || h === 0) return;
-    renderer.setSize(w, h);
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
+    heroRenderer.setSize(w, h);
+    heroCamera.aspect = w / h;
+    heroCamera.updateProjectionMatrix();
     if (heroCompositionRoot) {
         const active = loadedModels[heroFacetIndex];
         if (active) fitHeroCamera([active], { tight: true });
     }
 }
-resizeRenderer();
-window.addEventListener('resize', resizeRenderer);
+resizeHeroRenderer();
+window.addEventListener('resize', resizeHeroRenderer);
 
-let heroRotationY = 0;
+}
 
 let asmRenderer;
 let asmScene;
@@ -473,6 +835,8 @@ let consLeftClipTL = null;
 let consRightClipTL = null;
 /** Перезапуск цикла «сборка + клипсы + вращение» после полного оборота (задаётся в initConstructionWall) */
 let consLoopRestartFn = null;
+/** Секция #construction в зоне ScrollTrigger — иначе idle-вращение и клипсы не крутят в фоне */
+let consConstructionVisible = false;
 
 const CONS_LOOP_TURN_RAD = Math.PI * 2;
 
@@ -488,9 +852,9 @@ function updateConsCameraRideClip(clip) {
     const parentX = new THREE.Vector3(1, 0, 0).applyQuaternion(consWallRoot.quaternion).normalize();
     consCamera.position
         .copy(wpos)
-        .addScaledVector(parentZ, 0.46)
-        .addScaledVector(parentY, 0.14)
-        .addScaledVector(parentX, 0.07);
+        .addScaledVector(parentZ, 0.54)
+        .addScaledVector(parentY, 0.15)
+        .addScaledVector(parentX, 0.075);
     const lookAtPt = wpos
         .clone()
         .addScaledVector(parentZ, -0.52)
@@ -514,13 +878,15 @@ const CONS_WALL_ROT_FAST = CONS_WALL_ROT_NORMAL * 2.6;
 
 (function animate() {
     requestAnimationFrame(animate);
-    heroRotationY += HERO_ROT_SPEED;
-    if (heroCompositionRoot) {
-        heroCompositionRoot.rotation.y = heroRotationY;
-        heroCompositionRoot.rotation.x = 0;
-        heroCompositionRoot.rotation.z = 0;
+    if (heroRenderer && heroScene && heroCamera) {
+        heroRotationY += HERO_ROT_SPEED;
+        if (heroCompositionRoot) {
+            heroCompositionRoot.rotation.y = heroRotationY;
+            heroCompositionRoot.rotation.x = 0;
+            heroCompositionRoot.rotation.z = 0;
+        }
+        heroRenderer.render(heroScene, heroCamera);
     }
-    renderer.render(scene, camera);
     if (asmRenderer && asmScene && asmCamera) {
         if (asmAssemblyComplete && asmModelRoot) {
             asmModelRoot.rotation.y -= 0.0056;
@@ -530,10 +896,10 @@ const CONS_WALL_ROT_FAST = CONS_WALL_ROT_NORMAL * 2.6;
     }
     if (consRenderer && consScene && consCamera) {
         const consUd = consWallRoot?.userData;
-        if (consUd?.consClipMacroActive && consUd?.macroClip) {
+        if (consConstructionVisible && consUd?.consClipMacroActive && consUd?.macroClip) {
             updateConsCameraRideClip(consUd.macroClip);
         }
-        if (consWallComplete && consWallRoot) {
+        if (consConstructionVisible && consWallComplete && consWallRoot) {
             const ud = consWallRoot.userData;
             const deltaBefore =
                 ud.consIdleStartY != null ? consWallRoot.rotation.y - ud.consIdleStartY : 0;
@@ -593,7 +959,7 @@ const CONS_WALL_ROT_FAST = CONS_WALL_ROT_NORMAL * 2.6;
 })();
 
 // =============================================
-// Color Picker
+// Color Picker (modular 3D hero)
 // =============================================
 const colorNames = {
     '#7D7F7D': 'Gray',
@@ -1376,10 +1742,15 @@ function buildAssemblyMacroPlan(meshes, modelRoot) {
     };
 }
 
-/** Кадр макро: зона стыка + уже собранные фасеты; дистанция строго по bbox, без принудительного подгона под общий кадр куба (иначе обрезание). */
-function computeAssemblyMacroCamera(stat, mover, preLocal, outwardWorld, extraBoundsMeshes = []) {
+/**
+ * Кадр макро: зона стыка + уже собранные фасеты.
+ * lookAt всегда на центре собранного cubik (не на центре bbox пары граней) — иначе при разлёте
+ * точка взгляда «ездит» и модель визуально уходит от центра белого блока.
+ */
+function computeAssemblyMacroCamera(stat, mover, preLocal, outwardWorld, extraBoundsMeshes = [], cubikCenterWorld) {
     /** Запас по полю зрения — края граней и защёлки остаются в кадре. */
     const padding = 1.32;
+    const lookAt = cubikCenterWorld ? cubikCenterWorld.clone() : new THREE.Vector3(0, 0, 0);
     const s0 = stat.position.clone();
     const m0 = mover.position.clone();
 
@@ -1406,7 +1777,8 @@ function computeAssemblyMacroCamera(stat, mover, preLocal, outwardWorld, extraBo
     }
 
     const sphere = box.getBoundingSphere(new THREE.Sphere());
-    const r = Math.max(sphere.radius * padding, 0.06);
+    const offsetFromCubik = sphere.center.distanceTo(lookAt);
+    const r = Math.max((sphere.radius + offsetFromCubik) * padding, 0.06);
 
     const vHalf = THREE.MathUtils.degToRad(asmCamera.fov * 0.5);
     const aspect = Math.max(asmCamera.aspect, 0.001);
@@ -1418,9 +1790,8 @@ function computeAssemblyMacroCamera(stat, mover, preLocal, outwardWorld, extraBo
     if (dir.lengthSq() < 1e-12) dir.set(0.35, 0.18, 1);
     dir.normalize();
 
-    const lookAt = sphere.center.clone();
     const camPos = lookAt.clone().addScaledVector(dir, dist);
-    camPos.y += r * 0.06;
+    camPos.y += r * 0.05;
 
     const fitNear = Math.max(0.004, dist * 0.008);
     const fitFar = Math.max(160, dist * 6);
@@ -1609,7 +1980,7 @@ function playAssemblyBuild(meshes) {
         const mover = dualFlip ? fA.mesh : fB.mesh;
         const { outward } = plan.focusForPair(fA, fB);
         const preLocal = computePreSnapLocal(mover, outward, gap);
-        const macroCam = computeAssemblyMacroCamera(stat, mover, preLocal, outward, extras);
+        const macroCam = computeAssemblyMacroCamera(stat, mover, preLocal, outward, extras, plan.cubikCenterW);
 
         asmBuildTL.call(
             () => {
@@ -1675,7 +2046,7 @@ function playAssemblyBuild(meshes) {
         const mover = step.moverFacet.mesh;
         const { outward } = plan.focusForPair(step.statFacet, step.moverFacet);
         const preLocal = computePreSnapLocal(mover, outward, gap);
-        const macroCam = computeAssemblyMacroCamera(stat, mover, preLocal, outward, extras);
+        const macroCam = computeAssemblyMacroCamera(stat, mover, preLocal, outward, extras, plan.cubikCenterW);
 
         asmBuildTL.call(
             () => {
@@ -1871,6 +2242,9 @@ function initAssemblyViewer() {
                 console.log(`[Assembly] cubikCenter=(${cubikC.x.toFixed(4)},${cubikC.y.toFixed(4)},${cubikC.z.toFixed(4)})`);
 
                 let meshes = refMeshes;
+                console.log('%c[Assembly] Attempting mixed cube build...', 'color:cyan;font-weight:bold');
+                console.log('[Assembly] sources config:', JSON.stringify(ASSEMBLY_MIXED_CUBE.sources));
+                console.log('[Assembly] slots:', JSON.stringify(ASSEMBLY_MIXED_CUBE.slots.map(s => `${s.key}→${s.source}`)));
                 try {
                     const cr = await assemblyTryBuildMixedCubeFromModels(
                         root,
@@ -1880,6 +2254,7 @@ function initAssemblyViewer() {
                         gltfLoader
                     );
                     meshes = cr.meshes;
+                    console.log(`%c[Assembly] Mixed cube result: usedComposite=${cr.usedComposite}, meshes=${meshes.length}`, cr.usedComposite ? 'color:lime;font-weight:bold' : 'color:red;font-weight:bold');
                     asmModelRoot.updateMatrixWorld(true);
                     if (cr.usedComposite) {
                         assemblyRecenterRootContent(root);
@@ -1889,7 +2264,7 @@ function initAssemblyViewer() {
                         applyAssemblySlotColors(meshes, cubikC);
                     }
                 } catch (err) {
-                    console.error('[Assembly] build failed, fallback to bion only:', err);
+                    console.error('%c[Assembly] build FAILED, fallback to bion only:', 'color:red;font-weight:bold', err);
                     meshes = refMeshes;
                     applyAssemblySlotColors(meshes, cubikC);
                 }
@@ -1976,14 +2351,27 @@ function initAssemblyViewer() {
                     onLeave: () => resetAssemblyToExploded(meshes),
                     onLeaveBack: () => resetAssemblyToExploded(meshes),
                 });
+                /**
+                 * Если модель догрузилась, когда пользователь уже прокрутил к секции, onEnter не вызовется
+                 * (не было «пересечения» границы start). Fallback по getBoundingClientRect расходился с start/end — используем isActive.
+                 */
+                let assemblyPostLoadSyncRan = false;
+                function playAssemblyIfTriggerZoneActive() {
+                    if (assemblyPostLoadSyncRan) return;
+                    ScrollTrigger.refresh();
+                    const inZone =
+                        typeof asmScrollST.isActive === 'boolean'
+                            ? asmScrollST.isActive
+                            : isSectionInPlayViewport(document.getElementById('assembly'));
+                    if (!inZone) return;
+                    assemblyPostLoadSyncRan = true;
+                    playAssemblyBuild(meshes);
+                }
                 requestAnimationFrame(() => {
-                    asmScrollST.refresh();
+                    playAssemblyIfTriggerZoneActive();
                     requestAnimationFrame(() => {
-                        asmScrollST.refresh();
-                        const sec = document.getElementById('assembly');
-                        if (isSectionInPlayViewport(sec)) {
-                            playAssemblyBuild(meshes);
-                        }
+                        playAssemblyIfTriggerZoneActive();
+                        setTimeout(playAssemblyIfTriggerZoneActive, 220);
                     });
                 });
                 } finally {
@@ -2055,16 +2443,131 @@ function normalizeObjectToUnitAxesBox(obj) {
     obj.position.sub(c2);
 }
 
-function applyCubikMaterial(obj, hex) {
+/**
+ * Равномерный масштаб 1/max(size) — без разного масштаба по осям (иначе на Bion с normal map / рельефом — «рвёт» шейдинг).
+ * Ячейка может быть чуть меньше 1 по отдельным осям, зато без искажений.
+ */
+function normalizeObjectToUnitUniformMax(obj) {
+    obj.rotation.set(0, 0, 0);
+    obj.scale.set(1, 1, 1);
+    obj.position.set(0, 0, 0);
+    obj.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(obj);
+    const size = box.getSize(new THREE.Vector3());
+    const maxD = Math.max(size.x, size.y, size.z, 1e-6);
+    const center = box.getCenter(new THREE.Vector3());
+    obj.position.sub(center);
+    obj.updateMatrixWorld(true);
+    obj.scale.setScalar(1 / maxD);
+    obj.updateMatrixWorld(true);
+    const box2 = new THREE.Box3().setFromObject(obj);
+    obj.position.sub(box2.getCenter(new THREE.Vector3()));
+}
+
+/** Как normalizeObjectToUnitAxesBox, но union bbox только по Mesh — для GLB с пустыми transform/helper у root */
+function normalizeConstructionCubikToUnitBox(root) {
+    root.rotation.set(0, 0, 0);
+    root.scale.set(1, 1, 1);
+    root.position.set(0, 0, 0);
+    root.updateMatrixWorld(true);
+    const box = new THREE.Box3().makeEmpty();
+    root.traverse((ch) => {
+        if (ch.isMesh && ch.geometry) box.expandByObject(ch);
+    });
+    if (box.isEmpty()) {
+        normalizeObjectToUnitAxesBox(root);
+        return;
+    }
+    const size = box.getSize(new THREE.Vector3());
+    const cx = Math.max(size.x, 1e-6);
+    const cy = Math.max(size.y, 1e-6);
+    const cz = Math.max(size.z, 1e-6);
+    const center = box.getCenter(new THREE.Vector3());
+    root.position.sub(center);
+    root.updateMatrixWorld(true);
+    root.scale.set(1 / cx, 1 / cy, 1 / cz);
+    root.updateMatrixWorld(true);
+    const box2 = new THREE.Box3().makeEmpty();
+    root.traverse((ch) => {
+        if (ch.isMesh && ch.geometry) box2.expandByObject(ch);
+    });
+    if (!box2.isEmpty()) root.position.sub(box2.getCenter(new THREE.Vector3()));
+}
+
+/**
+ * Совмещает union bbox мешей void.glb с bbox нормализованного void.obj — та же ячейка сетки, без ручных сдвигов.
+ */
+function alignVoidGlbMeshToObjReference(voidGlbRoot, voidObjRefNormalized) {
+    voidGlbRoot.updateMatrixWorld(true);
+    voidObjRefNormalized.updateMatrixWorld(true);
+    const boxG = new THREE.Box3().makeEmpty();
+    const boxR = new THREE.Box3().makeEmpty();
+    voidGlbRoot.traverse((ch) => {
+        if (ch.isMesh && ch.geometry) boxG.expandByObject(ch);
+    });
+    voidObjRefNormalized.traverse((ch) => {
+        if (ch.isMesh && ch.geometry) boxR.expandByObject(ch);
+    });
+    if (boxG.isEmpty() || boxR.isEmpty()) return;
+    const sizeG = boxG.getSize(new THREE.Vector3());
+    const sizeR = boxR.getSize(new THREE.Vector3());
+    voidGlbRoot.scale.multiply(
+        new THREE.Vector3(
+            sizeR.x / Math.max(sizeG.x, 1e-6),
+            sizeR.y / Math.max(sizeG.y, 1e-6),
+            sizeR.z / Math.max(sizeG.z, 1e-6)
+        )
+    );
+    voidGlbRoot.updateMatrixWorld(true);
+    boxG.makeEmpty();
+    voidGlbRoot.traverse((ch) => {
+        if (ch.isMesh && ch.geometry) boxG.expandByObject(ch);
+    });
+    const cG = boxG.getCenter(new THREE.Vector3());
+    const cR = boxR.getCenter(new THREE.Vector3());
+    voidGlbRoot.position.add(cR.clone().sub(cG));
+}
+
+/** Construction: общие PBR-параметры — кубики и клипсы */
+const CONS_CUBIK_PBR_ENV_CLONE = 0.42;
+const CONS_CUBIK_PBR_ENV_NEW = 0.48;
+const CONS_CUBIK_PBR_ROUGH_NEW = 0.52;
+const CONS_CUBIK_PBR_METAL_NEW = 0.06;
+
+/**
+ * Construction: PBR с IBL. hex — как в палитре (sRGB); Color.setHex уже переводит в рабочее пространство.
+ * Низкий envMapIntensity — иначе отражения «перебивают» базовый цвет и он не совпадает с образцом.
+ */
+function applyCubikMaterial(obj, hex, envMap) {
     obj.traverse((child) => {
-        if (child.isMesh) {
+        if (!child.isMesh) return;
+        const m = child.material;
+        if (envMap && m && (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial)) {
+            const mat = m.clone();
+            mat.color.setHex(hex, THREE.SRGBColorSpace);
+            mat.envMap = envMap;
+            mat.envMapIntensity = CONS_CUBIK_PBR_ENV_CLONE;
+            mat.roughness = THREE.MathUtils.clamp((mat.roughness ?? 0.5) * 0.92, 0.38, 0.78);
+            mat.metalness = THREE.MathUtils.clamp(mat.metalness ?? 0.06, 0, 0.12);
+            child.material = mat;
+        } else {
             child.material = new THREE.MeshStandardMaterial({
-                color: hex,
-                roughness: 0.56,
-                metalness: 0.05,
+                color: new THREE.Color().setHex(hex, THREE.SRGBColorSpace),
+                roughness: CONS_CUBIK_PBR_ROUGH_NEW,
+                metalness: CONS_CUBIK_PBR_METAL_NEW,
+                envMap: envMap || null,
+                envMapIntensity: envMap ? CONS_CUBIK_PBR_ENV_NEW : 0,
             });
         }
     });
+}
+
+function stripGltfLightsAndCameras(root) {
+    const drop = [];
+    root.traverse((o) => {
+        if (o.isLight || o.isCamera) drop.push(o);
+    });
+    drop.forEach((o) => o.parent?.remove(o));
 }
 
 function initConstructionWall() {
@@ -2081,19 +2584,48 @@ function initConstructionWall() {
         antialias: true,
         alpha: false,
         logarithmicDepthBuffer: true,
+        powerPreference: 'high-performance',
     });
     consRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     consRenderer.setClearColor(0xffffff, 1);
-    consRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-    consRenderer.toneMappingExposure = 1.1;
+    consRenderer.outputColorSpace = THREE.SRGBColorSpace;
+    /** ACES сильно смещает оттенки относительно hex из палитры; Linear ближе к «как в макете» */
+    consRenderer.toneMapping = THREE.LinearToneMapping;
+    consRenderer.toneMappingExposure = 1.0;
+    consRenderer.shadowMap.enabled = true;
+    consRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    consScene.add(new THREE.AmbientLight(0xffffff, 0.78));
-    const cDir = new THREE.DirectionalLight(0xffffff, 1.05);
-    cDir.position.set(5, 10, 8);
+    const consPmrem = new THREE.PMREMGenerator(consRenderer);
+    const consRoomEnv = new RoomEnvironment();
+    const consEnvRt = consPmrem.fromScene(consRoomEnv, 0.04);
+    consScene.environment = consEnvRt.texture;
+    consRoomEnv.dispose();
+    consPmrem.dispose();
+
+    consScene.add(new THREE.AmbientLight(0xffffff, 0.22));
+    consScene.add(new THREE.HemisphereLight(0xffffff, 0xb4b6bc, 0.48));
+
+    const cDir = new THREE.DirectionalLight(0xffffff, 1.18);
+    cDir.position.set(4.2, 9.2, 6.8);
+    cDir.castShadow = true;
+    cDir.shadow.mapSize.set(2048, 2048);
+    cDir.shadow.camera.near = 0.35;
+    cDir.shadow.camera.far = 36;
+    cDir.shadow.camera.left = -3.6;
+    cDir.shadow.camera.right = 3.6;
+    cDir.shadow.camera.top = 3.6;
+    cDir.shadow.camera.bottom = -3.6;
+    cDir.shadow.bias = -0.00038;
+    cDir.shadow.normalBias = 0.048;
     consScene.add(cDir);
-    const cFill = new THREE.DirectionalLight(0xffffff, 0.35);
-    cFill.position.set(-5, 4, -6);
+
+    const cFill = new THREE.DirectionalLight(0xf2f4f8, 0.36);
+    cFill.position.set(-4.8, 3.4, -5.2);
     consScene.add(cFill);
+
+    const cRim = new THREE.DirectionalLight(0xffffff, 0.26);
+    cRim.position.set(0, 2.2, -8);
+    consScene.add(cRim);
 
     consWallRoot = new THREE.Group();
     consWallRoot.rotation.order = 'YXZ';
@@ -2150,6 +2682,43 @@ function initConstructionWall() {
             objLoader.load(url, resolve, undefined, reject);
         });
 
+    const consGltfLoader = new GLTFLoader();
+    const loadConsGltf = (url) =>
+        new Promise((resolve, reject) => {
+            consGltfLoader.load(url, resolve, undefined, reject);
+        });
+
+    async function loadZenCubikRoot() {
+        try {
+            const gltf = await loadConsGltf('./assets/models/zen.glb');
+            const root = gltf.scene.clone(true);
+            stripGltfLightsAndCameras(root);
+            return root;
+        } catch (err) {
+            console.warn('Construction: zen.glb failed, using zen.obj', err);
+            const o = await loadObj('./assets/models/zen.obj');
+            return o.clone(true);
+        }
+    }
+
+    /** void.glb по геометрии совмещаем с нормализованным void.obj — позиция в сетке как у OBJ. */
+    async function loadVoidTemplateForWall() {
+        const voidObj = await loadObj('./assets/models/void.obj');
+        const voidRef = voidObj.clone(true);
+        normalizeObjectToUnitAxesBox(voidRef);
+        try {
+            const gltf = await loadConsGltf('./assets/models/void.glb');
+            const voidT = gltf.scene.clone(true);
+            stripGltfLightsAndCameras(voidT);
+            normalizeConstructionCubikToUnitBox(voidT);
+            alignVoidGlbMeshToObjReference(voidT, voidRef);
+            return voidT;
+        } catch (err) {
+            console.warn('Construction: void.glb failed, using void.obj', err);
+            return voidRef.clone(true);
+        }
+    }
+
     const GRID = [-1, 0, 1];
     const Z_CLIP_START = 1.45;
     const D_CUBIK_MOVE = 0.875;
@@ -2166,9 +2735,28 @@ function initConstructionWall() {
     /** Пауза после полной посадки первой — затем отъезд и только остальные фронтальные клипсы */
     const CONS_PAUSE_AFTER_MACRO_SEATED = 0.38;
     const CONS_CLIP_PULLBACK_DUR = 1.55;
-    /** Макро-клипса: подгонка к пазу в кадре (+X правее, −Y ниже в мировых осях стены) */
-    const CONS_MACRO_CLIP_SLOT_NUDGE_X = -0.01;
+    /** Макро-клипса: смещение посадки относительно targetPos (+X вправо). Подгонка под паз — чуть левее расчёта */
+    const CONS_MACRO_CLIP_SLOT_NUDGE_X = -0.0012;
     const CONS_MACRO_CLIP_SLOT_NUDGE_Y = -0.034;
+    /** Доп. сдвиг макро-клипсы по Y (+ вверх, − вниз); не затрагивает остальные клипсы */
+    const CONS_MACRO_CLIP_V_NUDGE = -0.008;
+    /**
+     * Смещение финальной Z макро-клипсы относительно tpM.z (+ — к камере, мельче; − — глубже в паз).
+     * В clipPullT выставляем тот же tpM.z + bias, без щелчка наружу.
+     */
+    const CONS_MACRO_CLIP_Z_BIAS = -0.012;
+    /** Базовый масштаб геометрии клипсы на стенке; итог: × CONS_CLIP_GLOBAL_SCALE_PERCENT / 100 */
+    const CONS_CLIP_UNIFORM_SCALE = 0.765;
+    /** 100 = как база; 110 = все клипсы на 10% крупнее (проценты от базового масштаба) */
+    const CONS_CLIP_GLOBAL_SCALE_PERCENT = 102;
+    const CONS_CLIP_SCALE = CONS_CLIP_UNIFORM_SCALE * (CONS_CLIP_GLOBAL_SCALE_PERCENT * 0.01);
+    /**
+     * Горизонтальные швы: фронт/спина — пары ближе к центру столбца по X; левый/правый торец — те же пары по Z к центру глубины стены.
+     * Одно число для обоих (подбор, напр. 0.03). Макро — вертикальный клипс, не на этих рядах.
+     */
+    const CLIP_H_SEAM_PAIR_INSET = 0.032;
+    /** Вертикальные швы на фронте/спине (x = ±STEP/2): пары по Y ближе к центру ряда */
+    const CLIP_V_EDGE_PAIR_INSET = 0.032;
     const CLIP_BUILD_NUDGE = 0.07;
     const EASE_CLIP_BUILD = 'sine.inOut';
     const EASE_CLIP_INSERT = 'power4.in';
@@ -2177,15 +2765,18 @@ function initConstructionWall() {
     const STAGGER_IN_ROW = 0.06;
     const ROW_GAP = 0.11;
     const PAUSE_BEFORE_CLIPS = 0.11;
-    /** Один серый для всех типов фасетов */
+    /** Палитра: void — белый #f4f4f4; bion — серый #7d7f7d; zen / клипсы — см. ниже */
+    const CUBIK_VOID_WHITE = 0xf4f4f4;
+    const CUBIK_ZEN_BEIGE = 0xe1b589;
     const CUBIK_GRAY = 0x7d7f7d;
-    const CLIP_WHITE = 0xf2f2f2;
+    const CLIP_WHITE = 0xf4f4f4;
 
     /**
      * Поджатие крыльев по ширине — только макро-клипса (CONS_CLIP_MACRO_SLOW_DUR).
      * После rotClipUniform (π/2, π/2, 0) ширина в локальной Z.
+     * Меньше значение → сильнее сжатие. 0.76 ≈ на 25% слабее прежнего 0.68 (глубина к 1).
      */
-    const CLIP_LATERAL_SQUEEZE_MIN = 0.82;
+    const CLIP_LATERAL_SQUEEZE_MIN = 0.76;
     /** Доля медленной фазы посадки, за которую сжимаемся к минимуму */
     const CLIP_LATERAL_SQUEEZE_IN_FRAC = 0.42;
 
@@ -2264,23 +2855,25 @@ function initConstructionWall() {
 
     (async () => {
         try {
-            const [voidObj, bionObj, zenObj, clipsObj] = await Promise.all([
-                loadObj('./assets/models/void.obj'),
+            const [voidT, bionObj, zenRoot, clipsObj] = await Promise.all([
+                loadVoidTemplateForWall(),
                 loadObj('./assets/models/bion.obj'),
-                loadObj('./assets/models/zen.obj'),
+                loadZenCubikRoot(),
                 loadObj('./assets/models/clips.obj'),
             ]);
 
             consFallback?.setAttribute('hidden', '');
 
+            const consEnvTex = consScene.environment;
             const templates = new Map();
-            const voidT = voidObj.clone(true);
             const bionT = bionObj.clone(true);
-            const zenT = zenObj.clone(true);
-            [voidT, bionT, zenT].forEach(normalizeObjectToUnitAxesBox);
-            applyCubikMaterial(voidT, CUBIK_GRAY);
-            applyCubikMaterial(bionT, CUBIK_GRAY);
-            applyCubikMaterial(zenT, CUBIK_GRAY);
+            const zenT = zenRoot.clone(true);
+            /** voidT: void.glb, выровнен под void.obj в loadVoidTemplateForWall. Bion — OBJ, равномерный масштаб (без артефактов нормалей). Zen — GLB по мешам. */
+            normalizeObjectToUnitUniformMax(bionT);
+            normalizeConstructionCubikToUnitBox(zenT);
+            applyCubikMaterial(voidT, CUBIK_VOID_WHITE, consEnvTex);
+            applyCubikMaterial(bionT, CUBIK_GRAY, consEnvTex);
+            applyCubikMaterial(zenT, CUBIK_ZEN_BEIGE, consEnvTex);
             templates.set('void', voidT);
             templates.set('bion', bionT);
             templates.set('zen', zenT);
@@ -2301,18 +2894,21 @@ function initConstructionWall() {
                 const tpl = pickTemplate(iy);
                 for (const ix of GRID) {
                     const cubik = tpl.clone(true);
+                    const cubikTint =
+                        iy === -1 ? CUBIK_VOID_WHITE : iy === 0 ? CUBIK_GRAY : CUBIK_ZEN_BEIGE;
                     cubik.traverse((ch) => {
                         if (ch.isMesh && ch.material) {
                             ch.material = ch.material.clone();
-                            ch.material.color.setHex(CUBIK_GRAY);
+                            ch.material.color.setHex(cubikTint, THREE.SRGBColorSpace);
                         }
                     });
                     const ax = ix * STEP_X;
                     const ay = iy * STEP_Y;
                     cubik.userData.assembled = new THREE.Vector3(ax, ay, 0);
+                    if (iy === -1) cubik.userData.assembled.y -= 0.5;
                     cubik.userData.ix = ix;
                     cubik.userData.iy = iy;
-                    cubik.userData.sortY = ay;
+                    cubik.userData.sortY = cubik.userData.assembled.y;
                     cubik.userData.sortX = ax;
                     consWallRoot.add(cubik);
                     cubikRoots.push(cubik);
@@ -2404,18 +3000,20 @@ function initConstructionWall() {
             const clipScale = 0.14 / maxClip;
             clipGeom.scale(clipScale, clipScale, clipScale);
             clipGeom.computeBoundingBox();
-            const clipCtr = clipGeom.boundingBox.getCenter(new THREE.Vector3());
-            clipGeom.translate(-clipCtr.x, -clipCtr.y, -clipCtr.z);
+            clipGeom.center();
             clipGeom.computeBoundingSphere();
 
-            const CLIP_BASE_ROUGHNESS = 0.3;
-            const CLIP_BASE_METALNESS = 0.14;
             const clipMatTemplate = new THREE.MeshStandardMaterial({
-                color: CLIP_WHITE,
-                roughness: CLIP_BASE_ROUGHNESS,
-                metalness: CLIP_BASE_METALNESS,
+                color: new THREE.Color().setHex(CLIP_WHITE, THREE.SRGBColorSpace),
+                roughness: CONS_CUBIK_PBR_ROUGH_NEW,
+                metalness: CONS_CUBIK_PBR_METAL_NEW,
+                envMap: consEnvTex,
+                envMapIntensity: CONS_CUBIK_PBR_ENV_NEW,
                 emissive: new THREE.Color(0x000000),
                 emissiveIntensity: 0,
+                polygonOffset: true,
+                polygonOffsetFactor: -1,
+                polygonOffsetUnits: -4,
             });
 
             const clipMeshes = [];
@@ -2463,19 +3061,21 @@ function initConstructionWall() {
                         quat: quat.clone(),
                     });
                 };
+                const vInset = CLIP_V_EDGE_PAIR_INSET;
                 for (const iy of GRID) {
                     const yc = iy * STEP_Y;
-                    push(-STEP_X / 2, yc - clipAlongEdge);
-                    push(-STEP_X / 2, yc + clipAlongEdge);
-                    push(STEP_X / 2, yc - clipAlongEdge);
-                    push(STEP_X / 2, yc + clipAlongEdge);
+                    push(-STEP_X / 2, yc - clipAlongEdge + vInset);
+                    push(-STEP_X / 2, yc + clipAlongEdge - vInset);
+                    push(STEP_X / 2, yc - clipAlongEdge + vInset);
+                    push(STEP_X / 2, yc + clipAlongEdge - vInset);
                 }
+                const hInset = CLIP_H_SEAM_PAIR_INSET;
                 for (const ix of GRID) {
                     const xc = ix * STEP_X;
-                    push(xc - clipAlongEdge, -STEP_Y / 2);
-                    push(xc + clipAlongEdge, -STEP_Y / 2);
-                    push(xc - clipAlongEdge, STEP_Y / 2);
-                    push(xc + clipAlongEdge, STEP_Y / 2);
+                    push(xc - clipAlongEdge + hInset, -STEP_Y / 2);
+                    push(xc + clipAlongEdge - hInset, -STEP_Y / 2);
+                    push(xc - clipAlongEdge + hInset, STEP_Y / 2);
+                    push(xc + clipAlongEdge - hInset, STEP_Y / 2);
                 }
             };
 
@@ -2483,22 +3083,25 @@ function initConstructionWall() {
             const backTargets = [];
             const ySeamBottom = -STEP_Y / 2;
             const ySeamTop = STEP_Y / 2;
+            const sideZInset = CLIP_H_SEAM_PAIR_INSET;
             const pushSideQuad = (list, xPlane, quatBase) => {
+                const zm = zClipSideMid;
+                const zh = clipAlongZSide;
                 list.push(
                     {
-                        pos: new THREE.Vector3(xPlane, ySeamBottom, zClipSideMid - clipAlongZSide),
+                        pos: new THREE.Vector3(xPlane, ySeamBottom, zm - zh + sideZInset),
                         quat: quatBase.clone(),
                     },
                     {
-                        pos: new THREE.Vector3(xPlane, ySeamBottom, zClipSideMid + clipAlongZSide),
+                        pos: new THREE.Vector3(xPlane, ySeamBottom, zm + zh - sideZInset),
                         quat: quatBase.clone(),
                     },
                     {
-                        pos: new THREE.Vector3(xPlane, ySeamTop, zClipSideMid - clipAlongZSide),
+                        pos: new THREE.Vector3(xPlane, ySeamTop, zm - zh + sideZInset),
                         quat: quatBase.clone(),
                     },
                     {
-                        pos: new THREE.Vector3(xPlane, ySeamTop, zClipSideMid + clipAlongZSide),
+                        pos: new THREE.Vector3(xPlane, ySeamTop, zm + zh - sideZInset),
                         quat: quatBase.clone(),
                     }
                 );
@@ -2580,6 +3183,40 @@ function initConstructionWall() {
             allWallClipMeshes.forEach((m) => {
                 m.position.sub(wallPivotCenter);
                 m.userData.targetPos.sub(wallPivotCenter);
+                m.scale.setScalar(CONS_CLIP_SCALE);
+            });
+
+            function selectConstructionMacroClip(clips) {
+                let topClipY = -Infinity;
+                for (let ic = 0; ic < clips.length; ic++) {
+                    topClipY = Math.max(topClipY, clips[ic].userData.targetPos.y);
+                }
+                let macro = clips[0];
+                let bestX = -Infinity;
+                for (let ic = 0; ic < clips.length; ic++) {
+                    const cm = clips[ic];
+                    const p0 = cm.userData.targetPos;
+                    if (p0.y < topClipY - 0.002) continue;
+                    if (p0.x > bestX) {
+                        bestX = p0.x;
+                        macro = cm;
+                    }
+                }
+                return macro;
+            }
+            /** Макро не участвует в CLIP_V_EDGE_PAIR_INSET — возвращаем «верхнюю» Y пары + ручной nudge */
+            {
+                const m = selectConstructionMacroClip(clipMeshes);
+                const tp = m.userData.targetPos;
+                tp.y += CLIP_V_EDGE_PAIR_INSET + CONS_MACRO_CLIP_V_NUDGE;
+                m.position.y += CLIP_V_EDGE_PAIR_INSET + CONS_MACRO_CLIP_V_NUDGE;
+            }
+
+            consWallRoot.traverse((o) => {
+                if (o.isMesh) {
+                    o.castShadow = true;
+                    o.receiveShadow = true;
+                }
             });
 
             function setCubikMeshesOpacity(cubik, alpha) {
@@ -2688,17 +3325,19 @@ function initConstructionWall() {
                     gsap.killTweensOf(consCamera);
                     consCamera.fov = CONS_CAMERA_FOV_WIDE;
                     consCamera.updateProjectionMatrix();
+                    updateConsCameraFit();
                 }
                 [...clipMeshes, ...backClipMeshes, ...leftClipMeshes, ...rightClipMeshes].forEach((m) => {
                     gsap.killTweensOf(m.scale);
-                    m.scale.set(1, 1, 1);
+                    m.scale.setScalar(CONS_CLIP_SCALE);
                     const mat = m.material;
                     if (mat?.isMeshStandardMaterial) {
                         gsap.killTweensOf(mat);
                         mat.emissive.setHex(0x000000);
                         mat.emissiveIntensity = 0;
-                        mat.roughness = CLIP_BASE_ROUGHNESS;
-                        mat.metalness = CLIP_BASE_METALNESS;
+                        mat.roughness = CONS_CUBIK_PBR_ROUGH_NEW;
+                        mat.metalness = CONS_CUBIK_PBR_METAL_NEW;
+                        mat.envMapIntensity = CONS_CUBIK_PBR_ENV_NEW;
                     }
                 });
                 const firstRowIy = -1;
@@ -2781,11 +3420,22 @@ function initConstructionWall() {
 
             resetWallAnim();
             updateConsCameraFit();
+            if (consRenderer?.compile) {
+                consRenderer.compile(consScene, consCamera);
+            }
+            consRenderer.render(consScene, consCamera);
+
+            /** Сводит onEnter + refresh + fallback в один rAF — без двойного playWallAnim */
+            let consPlayEnqueueRaf = null;
 
             function playWallAnim() {
                 if (!consAnimPayload) return;
+                if (consPlayEnqueueRaf != null) {
+                    cancelAnimationFrame(consPlayEnqueueRaf);
+                    consPlayEnqueueRaf = null;
+                }
                 resetWallAnim();
-                consBuildTL = gsap.timeline({
+                const tl = gsap.timeline({
                     onComplete: () => {
                         consWallComplete = true;
                         consBuildTL = null;
@@ -2801,6 +3451,7 @@ function initConstructionWall() {
                         }
                     },
                 });
+                consBuildTL = tl;
                 const { cubikRoots: cubiks, clipMeshes: clips } = consAnimPayload;
                 const rowOf = (iy) =>
                     cubiks
@@ -2810,7 +3461,7 @@ function initConstructionWall() {
                 let rowT = 0;
                 rowOrder.forEach((iy) => {
                     const row = rowOf(iy);
-                    consBuildTL.add(() => {
+                    tl.add(() => {
                         row.forEach((c) => {
                             c.visible = true;
                             setCubikMeshesOpacity(c, 0);
@@ -2832,7 +3483,7 @@ function initConstructionWall() {
                     }, rowT);
                     row.forEach((c, i) => {
                         const p = c.userData.assembled;
-                        consBuildTL.to(
+                        tl.to(
                             c.position,
                             { x: p.x, y: p.y, z: p.z, duration: D_CUBIK_MOVE, ease: 'sine.inOut' },
                             rowT + i * STAGGER_IN_ROW
@@ -2842,23 +3493,8 @@ function initConstructionWall() {
                 });
                 const cubikEnd = rowT - ROW_GAP;
                 const clipPhaseStart = cubikEnd + PAUSE_BEFORE_CLIPS;
-                /** Макро-сцена: верхний ярус (макс. Y у фронтальных клипс), среди них ближе к центру по X */
-                let topClipY = -Infinity;
-                for (let ic = 0; ic < clips.length; ic++) {
-                    topClipY = Math.max(topClipY, clips[ic].userData.targetPos.y);
-                }
-                let macroClip = clips[0];
-                let bestAbsX = Infinity;
-                for (let ic = 0; ic < clips.length; ic++) {
-                    const cm = clips[ic];
-                    const p0 = cm.userData.targetPos;
-                    if (p0.y < topClipY - 0.002) continue;
-                    const ax = Math.abs(p0.x);
-                    if (ax < bestAbsX) {
-                        bestAbsX = ax;
-                        macroClip = cm;
-                    }
-                }
+                /** Макро: верхний ярус (макс. Y), среди них — правый верхний (макс. X) */
+                const macroClip = selectConstructionMacroClip(clips);
                 if (consWallRoot.userData) {
                     consWallRoot.userData.macroClip = macroClip;
                 }
@@ -2872,8 +3508,9 @@ function initConstructionWall() {
                 const pM = macroClip.position;
                 const tpMx = tpM.x + CONS_MACRO_CLIP_SLOT_NUDGE_X;
                 const tpMy = tpM.y + CONS_MACRO_CLIP_SLOT_NUDGE_Y;
+                const zMacroSeat = tpM.z + CONS_MACRO_CLIP_Z_BIAS;
 
-                consBuildTL.add(() => {
+                tl.add(() => {
                     clips.forEach((m) => {
                         m.visible = m === macroClip;
                     });
@@ -2882,13 +3519,13 @@ function initConstructionWall() {
                     }
                     pM.x = tpMx;
                     pM.y = tpMy;
-                    macroClip.scale.set(1, 1, 1);
+                    macroClip.scale.setScalar(CONS_CLIP_SCALE);
                     consCamera.fov = CONS_CLIP_MACRO_FOV;
                     consCamera.updateProjectionMatrix();
                     updateConsCameraRideClip(macroClip);
                 }, clipPhaseStart);
 
-                consBuildTL.to(
+                tl.to(
                     pM,
                     {
                         x: tpMx,
@@ -2899,23 +3536,23 @@ function initConstructionWall() {
                     },
                     clipPhaseStart
                 );
-                consBuildTL.to(
+                tl.to(
                     pM,
                     {
                         x: tpMx,
                         y: tpMy,
-                        z: tpM.z + 0.065,
+                        z: tpM.z + 0.065 + CONS_MACRO_CLIP_Z_BIAS * 0.35,
                         duration: CONS_CLIP_MACRO_FAST_DUR,
                         ease: 'power1.in',
                     },
                     clipPhaseStart + CONS_CLIP_MACRO_NUDGE_DUR
                 );
-                consBuildTL.to(
+                tl.to(
                     pM,
                     {
                         x: tpMx,
                         y: tpMy,
-                        z: tpM.z,
+                        z: zMacroSeat,
                         duration: CONS_CLIP_MACRO_SLOW_DUR,
                         ease: 'power2.out',
                     },
@@ -2924,18 +3561,20 @@ function initConstructionWall() {
 
                 const macroSqIn = CONS_CLIP_MACRO_SLOW_DUR * CLIP_LATERAL_SQUEEZE_IN_FRAC;
                 const macroSqOut = Math.max(CONS_CLIP_MACRO_SLOW_DUR - macroSqIn, 0.001);
-                consBuildTL.to(
+                const macroSqZMin = CONS_CLIP_SCALE * CLIP_LATERAL_SQUEEZE_MIN;
+                tl.to(
                     macroClip.scale,
-                    { z: CLIP_LATERAL_SQUEEZE_MIN, duration: macroSqIn, ease: 'power2.in' },
+                    { z: macroSqZMin, duration: macroSqIn, ease: 'power2.in' },
                     macroSlowT0
                 );
-                consBuildTL.to(
+                tl.to(
                     macroClip.scale,
-                    { z: 1, duration: macroSqOut, ease: 'power2.out' },
+                    { z: CONS_CLIP_SCALE, duration: macroSqOut, ease: 'power2.out' },
                     macroSlowT0 + macroSqIn
                 );
 
-                consBuildTL.add(() => {
+                tl.add(() => {
+                    pM.z = tpM.z + CONS_MACRO_CLIP_Z_BIAS;
                     if (consWallRoot.userData) {
                         consWallRoot.userData.consClipMacroActive = false;
                     }
@@ -2944,7 +3583,7 @@ function initConstructionWall() {
                     });
                 }, clipPullT);
 
-                consBuildTL.to(
+                tl.to(
                     consCamera.position,
                     {
                         x: 0,
@@ -2959,7 +3598,7 @@ function initConstructionWall() {
                     clipPullT
                 );
                 const consFovTween = { f: CONS_CLIP_MACRO_FOV };
-                consBuildTL.to(
+                tl.to(
                     consFovTween,
                     {
                         f: CONS_CAMERA_FOV_WIDE,
@@ -2976,37 +3615,135 @@ function initConstructionWall() {
                 clips.forEach((m) => {
                     if (m === macroClip) return;
                     const tp = m.userData.targetPos;
-                    addClipBuildThenInsert(consBuildTL, m, tp, 'front', clipPullT);
+                    addClipBuildThenInsert(tl, m, tp, 'front', clipPullT);
                 });
             }
 
+            /** Цикл «полный оборот → перезапуск»: playWallAnim уже делает resetWallAnim в начале */
             consLoopRestartFn = () => {
-                if (!consAnimPayload) return;
-                resetWallAnim();
+                if (!consAnimPayload || !consConstructionVisible) return;
                 playWallAnim();
             };
 
-            const consScrollST = ScrollTrigger.create({
+            let consScrollST = null;
+
+            /**
+             * Блокируем только «угол снизу» при почти нулевом скролле (баннер + кусок блока без долистывания).
+             * Не делаем один жёсткий порог по r.top — иначе onEnter срабатывает раньше, чем условие, и повторного onEnter нет → белый кадр.
+             */
+            function shouldAllowConstructionAutoplay() {
+                if (window.location.hash === '#construction') return true;
+                const sec = document.getElementById('construction');
+                if (!sec) return false;
+                const r = sec.getBoundingClientRect();
+                const vh = window.innerHeight || 1;
+                if (window.scrollY < 20 && r.top > vh * 0.42) return false;
+                return r.top <= vh * 0.62;
+            }
+
+            let consScrollRetryRaf = null;
+            function onConsWindowScrollRetry() {
+                if (consScrollRetryRaf != null) return;
+                consScrollRetryRaf = requestAnimationFrame(() => {
+                    consScrollRetryRaf = null;
+                    if (!consScrollST) return;
+                    syncConstructionIfStuck(consScrollST);
+                });
+            }
+
+            /** Выход из зоны: стоп GSAP + сброс + кадр */
+            function pauseConstructionSection() {
+                consConstructionVisible = false;
+                resetWallAnim();
+                if (consRenderer && consScene && consCamera) {
+                    consRenderer.render(consScene, consCamera);
+                }
+            }
+
+            /**
+             * Не вызывать pause на каждый onLeave — микропрокрутка и ScrollTrigger.refresh()
+             * (аккордеон, resize) дают кратковременный !isActive → анимация «падала».
+             * Пауза только если секция реально вне зоны после задержки; отмена при повторном входе.
+             */
+            const CONS_PAUSE_DEBOUNCE_MS = 420;
+            let consPauseDebounceTimer = null;
+            function cancelConstructionPauseDebounce() {
+                if (consPauseDebounceTimer != null) {
+                    clearTimeout(consPauseDebounceTimer);
+                    consPauseDebounceTimer = null;
+                }
+            }
+            function schedulePauseConstructionSection() {
+                cancelConstructionPauseDebounce();
+                consPauseDebounceTimer = setTimeout(() => {
+                    consPauseDebounceTimer = null;
+                    if (consScrollST?.isActive) return;
+                    pauseConstructionSection();
+                }, CONS_PAUSE_DEBOUNCE_MS);
+            }
+
+            /** Вход в зону / восстановление после refresh: всегда с нуля (playWallAnim сам делает reset) */
+            function enqueueConstructionPlay() {
+                if (!shouldAllowConstructionAutoplay()) return;
+                if (consPlayEnqueueRaf != null) return;
+                consPlayEnqueueRaf = requestAnimationFrame(() => {
+                    consPlayEnqueueRaf = null;
+                    playWallAnim();
+                });
+            }
+
+            /**
+             * После любого ScrollTrigger.refresh() (аккордеон, resize) onEnter может не вызваться повторно,
+             * хотя секция всё ещё в зоне — тогда анимация «зависает» на сброшенном кадре.
+             */
+            function syncConstructionIfStuck(self) {
+                if (!shouldAllowConstructionAutoplay()) return;
+                if (!self?.isActive) return;
+                consConstructionVisible = true;
+                if (consBuildTL) return;
+                if (consWallComplete) return;
+                enqueueConstructionPlay();
+            }
+
+            consScrollST = ScrollTrigger.create({
                 trigger: '#construction',
-                start: 'top 70%',
+                /** Ниже, чем 70%: меньше шансов «уже в зоне» при первом кадре с куском секции внизу экрана */
+                start: 'top 88%',
                 end: 'bottom 25%',
-                /** При каждом входе в зону триггера — полный сброс и сборка с нуля (после ухода со секции) */
-                onToggle: (self) => {
-                    if (self.isActive) playWallAnim();
-                    else resetWallAnim();
+                onEnter: () => {
+                    cancelConstructionPauseDebounce();
+                    consConstructionVisible = true;
+                    enqueueConstructionPlay();
                 },
+                onEnterBack: () => {
+                    cancelConstructionPauseDebounce();
+                    consConstructionVisible = true;
+                    enqueueConstructionPlay();
+                },
+                onLeave: schedulePauseConstructionSection,
+                onLeaveBack: schedulePauseConstructionSection,
             });
+
+            consConstructionVisible = Boolean(consScrollST?.isActive);
+
+            const consGlobalRefreshHandler = () => {
+                if (!consScrollST) return;
+                /** Не ставить false при refresh — иначе ложный сброс при пересчёте триггеров (аккордеон и т.д.) */
+                if (consScrollST.isActive) {
+                    consConstructionVisible = true;
+                }
+                syncConstructionIfStuck(consScrollST);
+            };
+            ScrollTrigger.addEventListener('refresh', consGlobalRefreshHandler);
+            window.addEventListener('scroll', onConsWindowScrollRetry, { passive: true });
+
             requestAnimationFrame(() => {
-                consScrollST.refresh();
+                ScrollTrigger.refresh();
                 requestAnimationFrame(() => {
-                    consScrollST.refresh();
-                    const sec = document.getElementById('construction');
-                    if (
-                        isSectionInPlayViewport(sec) &&
-                        !consBuildTL &&
-                        !consWallComplete
-                    ) {
-                        playWallAnim();
+                    ScrollTrigger.refresh();
+                    if (consScrollST) {
+                        consConstructionVisible = Boolean(consScrollST.isActive);
+                        syncConstructionIfStuck(consScrollST);
                     }
                 });
             });
