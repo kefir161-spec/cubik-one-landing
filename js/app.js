@@ -6,7 +6,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 gsap.registerPlugin(ScrollTrigger);
-console.log('%c[app.js v86] LOADED', 'color:lime;font-weight:bold;font-size:14px');
+console.log('%c[app.js v87] LOADED', 'color:lime;font-weight:bold;font-size:14px');
 
 /** Должна совпадать с проверкой после загрузки assembly: глобальный ScrollTrigger.refresh() сдвигает все триггеры и может вызвать onToggle(false) у соседних секций без последующего onToggle(true). */
 function isSectionInPlayViewport(sectionEl) {
@@ -17,16 +17,20 @@ function isSectionInPlayViewport(sectionEl) {
 }
 
 /**
- * Совпадает с ScrollTrigger #assemblyStage: start "top 80%", end "bottom 20%".
- * Нужен, когда onEnter не вызывается при создании триггера (модель догрузилась уже в зоне).
+ * Совпадает с ScrollTrigger на stage: start "top 80%", end "bottom 20%".
+ * Используется для fallback после загрузки и для защиты от ложного onLeave после refresh().
  */
-function isAssemblyScrollRangeApprox(sectionEl) {
-    if (!sectionEl) return false;
-    const el = document.getElementById('assemblyStage') || sectionEl;
-    const r = el.getBoundingClientRect();
+function isStageScrollZoneApprox(stageEl) {
+    if (!stageEl) return false;
+    const r = stageEl.getBoundingClientRect();
     const vh = window.innerHeight || 1;
     if (r.height <= 0 || r.width <= 0) return false;
     return r.top <= vh * 0.8 && r.bottom > vh * 0.2;
+}
+
+/** Совпадает с триггером #assemblyStage (см. isStageScrollZoneApprox). */
+function isAssemblyScrollRangeApprox(sectionEl) {
+    return isStageScrollZoneApprox(document.getElementById('assemblyStage') || sectionEl);
 }
 
 // =============================================
@@ -2426,9 +2430,18 @@ function initAssemblyViewer() {
                     assemblyLeaveDebounce = setTimeout(() => {
                         assemblyLeaveDebounce = null;
                         if (!asmScrollST || asmScrollST.isActive) return;
+                        const stage = document.getElementById('assemblyStage');
+                        if (stage && isStageScrollZoneApprox(stage)) return;
                         resetAssemblyToExploded(meshes);
-                    }, 120);
+                    }, 150);
                 }
+
+                const asmRefreshGuard = () => {
+                    if (!asmScrollST?.isActive) return;
+                    clearTimeout(assemblyLeaveDebounce);
+                    assemblyLeaveDebounce = null;
+                };
+                ScrollTrigger.addEventListener('refresh', asmRefreshGuard);
 
                 asmScrollST = ScrollTrigger.create({
                     trigger: '#assemblyStage',
@@ -3806,6 +3819,8 @@ function initConstructionWall() {
                 consPauseDebounceTimer = setTimeout(() => {
                     consPauseDebounceTimer = null;
                     if (consScrollST?.isActive) return;
+                    const stage = document.getElementById('constructionStage');
+                    if (stage && isStageScrollZoneApprox(stage)) return;
                     pauseConstructionSection();
                 }, CONS_PAUSE_DEBOUNCE_MS);
             }
@@ -3856,6 +3871,7 @@ function initConstructionWall() {
                 /** Не ставить false при refresh — иначе ложный сброс при пересчёте триггеров (аккордеон и т.д.) */
                 if (consScrollST.isActive) {
                     consConstructionVisible = true;
+                    cancelConstructionPauseDebounce();
                 }
                 syncConstructionIfStuck(consScrollST);
             };
