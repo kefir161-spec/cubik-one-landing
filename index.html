@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css?v=45">
+    <link rel="stylesheet" href="css/styles.css?v=46">
     <link rel="preload" as="image" href="assets/images/banner/Garden/2.jpeg" fetchpriority="high">
 </head>
 <body>
@@ -97,6 +97,7 @@
     <div class="section-stage-card">
         <div class="construction-stage" id="constructionStage">
             <canvas id="constructionCanvas" aria-label="Modular wall and clips"></canvas>
+            <p class="stage-loader construction-loader" id="constructionLoader" aria-live="polite">Loading 3D scene…</p>
             <p class="construction-fallback" id="constructionFallback" hidden>Could not load wall models — check void.obj, bion.obj, zen.obj, and clips.obj in assets/models.</p>
         </div>
         <p class="section-sub section-sub--below-stage">Snap it in—done. Scale your build to any size.</p>
@@ -124,6 +125,7 @@
                                     data-acc-video
                                     muted
                                     playsinline
+                                    webkit-playsinline
                                     preload="auto"
                                     loop
                                     aria-label="Durability — load demonstration"
@@ -223,6 +225,7 @@
     <div class="section-stage-card">
         <div class="assembly-stage assembly-stage--interactive" id="assemblyStage" role="button" tabindex="0" aria-label="Cubik assembly animation — tap to replay">
             <canvas id="assemblyCanvas" aria-label="Cubik assembly: six interchangeable facets snap in sequence, then the full cubik spins"></canvas>
+            <p class="stage-loader assembly-loader" id="assemblyLoader" aria-live="polite">Loading 3D…</p>
             <p class="assembly-fallback" id="assemblyFallback" hidden>Could not load assembly models — check assets/models/bion.glb, void.glb, zen.glb.</p>
         </div>
         <p class="section-sub">Every facet is interchangeable: snap together by hand—no tools—and unlock any design or engineering idea you can imagine.</p>
@@ -356,6 +359,6 @@
     }
 }
 </script>
-<script type="module" src="js/app.js?v=44"></script>
+<script type="module" src="js/app.js?v=51"></script>
 </body>
 </html>

@@ -6,7 +6,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 gsap.registerPlugin(ScrollTrigger);
-console.log('%c[app.js v76] LOADED', 'color:lime;font-weight:bold;font-size:14px');
+console.log('%c[app.js v81] LOADED', 'color:lime;font-weight:bold;font-size:14px');
 
 /** Должна совпадать с проверкой после загрузки assembly: глобальный ScrollTrigger.refresh() сдвигает все триггеры и может вызвать onToggle(false) у соседних секций без последующего onToggle(true). */
 function isSectionInPlayViewport(sectionEl) {
@@ -14,6 +14,18 @@ function isSectionInPlayViewport(sectionEl) {
     const r = sectionEl.getBoundingClientRect();
     const vh = window.innerHeight || 1;
     return r.top < vh * 0.72 && r.bottom > vh * 0.12;
+}
+
+/**
+ * Совпадает с ScrollTrigger #assembly: start "top 70%", end "bottom 25%" (как в initAssemblyViewer).
+ * Нужен, когда onEnter не вызывается при создании триггера (модель догрузилась уже в зоне).
+ */
+function isAssemblyScrollRangeApprox(sectionEl) {
+    if (!sectionEl) return false;
+    const r = sectionEl.getBoundingClientRect();
+    const vh = window.innerHeight || 1;
+    if (r.height <= 0 || r.width <= 0) return false;
+    return r.top <= vh * 0.7 && r.bottom > vh * 0.25;
 }
 
 // =============================================
@@ -224,10 +236,28 @@ modularHeroTL
     .to('.modular-accordion', { opacity: 1, y: 0, duration: 0.52 })
     .to('.modular-canvas-wrap', { opacity: 1, y: 0, scale: 1, duration: 0.62, ease: 'power2.out' }, '-=0.3')
     .to('.modular-controls', { opacity: 1, y: 0, duration: 0.45 }, '-=0.52');
+modularHeroTL.pause(0);
+if (document.getElementById('material')) {
+    ScrollTrigger.create({
+        trigger: '#material',
+        start: 'top 88%',
+        once: true,
+        onEnter: () => modularHeroTL.play(0),
+    });
+} else {
+    modularHeroTL.play(0);
+}
 
 (function initModularAccordion() {
     const root = document.getElementById('modularAccordion');
     if (!root) return;
+
+    const isNarrowUi = window.matchMedia('(max-width: 900px)').matches;
+
+    /** На touch play() из IntersectionObserver не считается user gesture — только пауза при уходе с экрана. */
+    const accVideoIoShouldPlay = !(
+        window.matchMedia('(pointer: coarse)').matches || isNarrowUi
+    );
 
     const items = root.querySelectorAll('[data-acc-item]');
     let refreshTimer = null;
@@ -260,29 +290,42 @@ modularHeroTL
         }
     }
 
-    /** Воспроизведение после открытия панели: muted + playsinline; ждём canplay/loadeddata, иначе play() падает на пустом буфере. */
+    /**
+     * Muted + playsInline — допустимый автоплей; на iOS play() должен быть в том же turn, что и tap,
+     * иначе браузер блокирует (requestAnimationFrame ломает user gesture).
+     */
     function playVideo(item) {
         const v = item.querySelector('video[data-acc-video]');
         if (!v) return;
         v.muted = true;
+        v.defaultMuted = true;
+        v.setAttribute('muted', '');
         if ('playsInline' in v) v.playsInline = true;
+        v.setAttribute('playsinline', '');
+        v.setAttribute('webkit-playsinline', '');
+        if (v.preload !== 'auto') {
+            v.preload = 'auto';
+        }
 
-        const tryPlay = () => {
-            v.play().catch(() => {});
-        };
+        const tryPlay = () => v.play().catch(() => {});
 
         if (v.readyState >= 2) {
             tryPlay();
             return;
         }
+        tryPlay();
         const onReady = () => {
             v.removeEventListener('canplay', onReady);
             v.removeEventListener('loadeddata', onReady);
+            v.removeEventListener('canplaythrough', onReady);
             tryPlay();
         };
         v.addEventListener('canplay', onReady, { once: true });
         v.addEventListener('loadeddata', onReady, { once: true });
-        if (v.readyState === 0) v.load();
+        v.addEventListener('canplaythrough', onReady, { once: true });
+        if (v.readyState < 2) {
+            v.load();
+        }
     }
 
     items.forEach((item) => {
@@ -299,7 +342,7 @@ modularHeroTL
             if (opening) {
                 item.classList.add('is-open');
                 setPanelA11y(item, true);
-                requestAnimationFrame(() => playVideo(item));
+                playVideo(item);
             }
             scheduleScrollTriggerRefresh();
         });
@@ -313,7 +356,7 @@ modularHeroTL
                           const item = en.target;
                           if (!item.classList.contains('is-open')) return;
                           if (en.isIntersecting) {
-                              playVideo(item);
+                              if (accVideoIoShouldPlay) playVideo(item);
                           } else {
                               pauseVideo(item);
                           }
@@ -361,7 +404,14 @@ heroCamera = new THREE.PerspectiveCamera(32, 2.5, 0.1, 500);
 heroCamera.position.set(0, 1.2, 34);
 
 heroRenderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true });
-heroRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+function getHeroPixelRatioCap() {
+    return window.matchMedia('(max-width: 900px)').matches ? 1.25 : 2;
+}
+function applyHeroPixelRatio() {
+    if (!heroRenderer) return;
+    heroRenderer.setPixelRatio(Math.min(window.devicePixelRatio, getHeroPixelRatioCap()));
+}
+applyHeroPixelRatio();
 heroRenderer.toneMapping = THREE.ACESFilmicToneMapping;
 heroRenderer.toneMappingExposure = 1.2;
 
@@ -670,11 +720,13 @@ function fitHeroCamera(groups, opts = {}) {
     if (!groups.length || !heroCamera) return;
 
     const tight = opts.tight === true;
-    /** Запас под вращение и наклон без обрезки в канвасе */
-    const padding = tight ? 1.32 : 1.18;
+    const narrow =
+        typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches;
+    /** Запас под вращение и наклон без обрезки в канвасе; на узких экранах — крупнее модель */
+    const padding = tight ? (narrow ? 1.16 : 1.32) : 1.18;
     /** Доп. вертикальный запас: верх граней при tilt+Y-вращении не вылезает из canvas */
-    const paddingV = tight ? padding * 1.12 : padding;
-    const minDist = tight ? 7.8 : 24;
+    const paddingV = tight ? padding * (narrow ? 1.06 : 1.12) : padding;
+    const minDist = tight ? (narrow ? 5.1 : 7.8) : 24;
 
     const g0 = groups[0];
     const u = g0.userData?.heroFitSpan;
@@ -769,6 +821,7 @@ function resizeHeroRenderer() {
     const w = canvasWrap.clientWidth;
     const h = canvasWrap.clientHeight;
     if (w === 0 || h === 0) return;
+    applyHeroPixelRatio();
     heroRenderer.setSize(w, h);
     heroCamera.aspect = w / h;
     heroCamera.updateProjectionMatrix();
@@ -780,6 +833,17 @@ function resizeHeroRenderer() {
 resizeHeroRenderer();
 window.addEventListener('resize', resizeHeroRenderer);
 
+}
+
+let heroSectionInView = true;
+const materialSectionEl = document.getElementById('material');
+if (materialSectionEl && 'IntersectionObserver' in window) {
+    new IntersectionObserver(
+        (entries) => {
+            heroSectionInView = entries[0]?.isIntersecting ?? true;
+        },
+        { rootMargin: '80px 0px', threshold: 0.02 }
+    ).observe(materialSectionEl);
 }
 
 let asmRenderer;
@@ -885,7 +949,9 @@ const CONS_WALL_ROT_FAST = CONS_WALL_ROT_NORMAL * 2.6;
             heroCompositionRoot.rotation.x = 0;
             heroCompositionRoot.rotation.z = 0;
         }
-        heroRenderer.render(heroScene, heroCamera);
+        if (heroSectionInView) {
+            heroRenderer.render(heroScene, heroCamera);
+        }
     }
     if (asmRenderer && asmScene && asmCamera) {
         if (asmAssemblyComplete && asmModelRoot) {
@@ -2138,7 +2204,7 @@ function playAssemblyBuild(meshes) {
 }
 
 function initAssemblyViewer() {
-    if (!asmCanvas || !asmStage) return;
+    if (asmRenderer || !asmCanvas || !asmStage) return;
 
     asmScene = new THREE.Scene();
     asmScene.background = new THREE.Color(0xffffff);
@@ -2152,7 +2218,12 @@ function initAssemblyViewer() {
         alpha: false,
         logarithmicDepthBuffer: true,
     });
-    asmRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    function applyAsmPixelRatio() {
+        if (!asmRenderer) return;
+        const cap = window.matchMedia('(max-width: 768px)').matches ? 1.25 : 2;
+        asmRenderer.setPixelRatio(Math.min(window.devicePixelRatio, cap));
+    }
+    applyAsmPixelRatio();
     asmRenderer.setClearColor(0xffffff, 1);
     asmRenderer.toneMapping = THREE.ACESFilmicToneMapping;
     asmRenderer.toneMappingExposure = 1.12;
@@ -2181,6 +2252,7 @@ function initAssemblyViewer() {
         const w = asmStage.clientWidth;
         const h = asmStage.clientHeight;
         if (w < 2 || h < 2) return;
+        applyAsmPixelRatio();
         asmRenderer.setSize(w, h, false);
         asmCamera.aspect = w / h;
         asmCamera.updateProjectionMatrix();
@@ -2342,51 +2414,97 @@ function initAssemblyViewer() {
 
                 assemblyMeshesRef = meshes;
 
-                const asmScrollST = ScrollTrigger.create({
+                /** Сразу после create + глобальный refresh часто дают ложный onLeave → reset → mesh.visible=false → белый canvas. */
+                const assemblySTCreatedAt = performance.now();
+                const ASSEMBLY_LEAVE_GUARD_MS = 900;
+                let assemblyLeaveDebounce = null;
+                let asmScrollST = null;
+                function assemblySafeReset() {
+                    if (performance.now() - assemblySTCreatedAt < ASSEMBLY_LEAVE_GUARD_MS) return;
+                    clearTimeout(assemblyLeaveDebounce);
+                    assemblyLeaveDebounce = setTimeout(() => {
+                        assemblyLeaveDebounce = null;
+                        if (!asmScrollST || asmScrollST.isActive) return;
+                        resetAssemblyToExploded(meshes);
+                    }, 100);
+                }
+
+                asmScrollST = ScrollTrigger.create({
                     trigger: '#assembly',
                     start: 'top 70%',
                     end: 'bottom 25%',
                     onEnter: () => playAssemblyBuild(meshes),
                     onEnterBack: () => playAssemblyBuild(meshes),
-                    onLeave: () => resetAssemblyToExploded(meshes),
-                    onLeaveBack: () => resetAssemblyToExploded(meshes),
+                    onLeave: assemblySafeReset,
+                    onLeaveBack: assemblySafeReset,
                 });
                 /**
-                 * Если модель догрузилась, когда пользователь уже прокрутил к секции, onEnter не вызовется
-                 * (не было «пересечения» границы start). Fallback по getBoundingClientRect расходился с start/end — используем isActive.
+                 * Если модель догрузилась, когда пользователь уже в зоне секции, onEnter не сработает.
+                 * Добавляем isAssemblyScrollRangeApprox + короткий слушатель scroll после загрузки.
                  */
                 let assemblyPostLoadSyncRan = false;
+                let assemblyScrollCleanup = null;
                 function playAssemblyIfTriggerZoneActive() {
                     if (assemblyPostLoadSyncRan) return;
-                    ScrollTrigger.refresh();
+                    if (asmBuildTL?.isActive()) {
+                        assemblyPostLoadSyncRan = true;
+                        assemblyScrollCleanup?.();
+                        assemblyScrollCleanup = null;
+                        return;
+                    }
+                    const sec = document.getElementById('assembly');
                     const inZone =
-                        typeof asmScrollST.isActive === 'boolean'
-                            ? asmScrollST.isActive
-                            : isSectionInPlayViewport(document.getElementById('assembly'));
+                        asmScrollST.isActive === true ||
+                        isAssemblyScrollRangeApprox(sec) ||
+                        isSectionInPlayViewport(sec);
                     if (!inZone) return;
                     assemblyPostLoadSyncRan = true;
+                    assemblyScrollCleanup?.();
+                    assemblyScrollCleanup = null;
                     playAssemblyBuild(meshes);
                 }
                 requestAnimationFrame(() => {
+                    ScrollTrigger.refresh();
                     playAssemblyIfTriggerZoneActive();
                     requestAnimationFrame(() => {
                         playAssemblyIfTriggerZoneActive();
-                        setTimeout(playAssemblyIfTriggerZoneActive, 220);
+                        setTimeout(playAssemblyIfTriggerZoneActive, 0);
+                        setTimeout(playAssemblyIfTriggerZoneActive, 120);
+                        setTimeout(playAssemblyIfTriggerZoneActive, 420);
+                        setTimeout(playAssemblyIfTriggerZoneActive, 900);
+                        setTimeout(playAssemblyIfTriggerZoneActive, 1800);
                     });
                 });
+                const assemblyScrollDeadline = performance.now() + 12000;
+                const onAssemblyScrollSync = () => {
+                    if (assemblyPostLoadSyncRan || performance.now() > assemblyScrollDeadline) {
+                        window.removeEventListener('scroll', onAssemblyScrollSync, {
+                            passive: true,
+                        });
+                        return;
+                    }
+                    playAssemblyIfTriggerZoneActive();
+                };
+                assemblyScrollCleanup = () =>
+                    window.removeEventListener('scroll', onAssemblyScrollSync, { passive: true });
+                window.addEventListener('scroll', onAssemblyScrollSync, { passive: true });
+                setTimeout(() => {
+                    assemblyScrollCleanup?.();
+                    assemblyScrollCleanup = null;
+                }, 12000);
                 } finally {
                     asmCanvas?.classList.remove('is-assembly-preparing');
+                    asmStage?.classList.add('is-ready');
                 }
             })();
         },
         undefined,
         () => {
             asmFallback?.removeAttribute('hidden');
+            asmStage?.classList.add('is-ready');
         }
     );
 }
-
-initAssemblyViewer();
 
 function replayAssemblyAnimation() {
     if (!assemblyMeshesRef?.length) return;
@@ -2571,7 +2689,7 @@ function stripGltfLightsAndCameras(root) {
 }
 
 function initConstructionWall() {
-    if (!consCanvas || !consStage) return;
+    if (consRenderer || !consCanvas || !consStage) return;
 
     consScene = new THREE.Scene();
     consScene.background = new THREE.Color(0xffffff);
@@ -2586,7 +2704,12 @@ function initConstructionWall() {
         logarithmicDepthBuffer: true,
         powerPreference: 'high-performance',
     });
-    consRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    function applyConsPixelRatio() {
+        if (!consRenderer) return;
+        const cap = window.matchMedia('(max-width: 768px)').matches ? 1.25 : 2;
+        consRenderer.setPixelRatio(Math.min(window.devicePixelRatio, cap));
+    }
+    applyConsPixelRatio();
     consRenderer.setClearColor(0xffffff, 1);
     consRenderer.outputColorSpace = THREE.SRGBColorSpace;
     /** ACES сильно смещает оттенки относительно hex из палитры; Linear ближе к «как в макете» */
@@ -2608,7 +2731,8 @@ function initConstructionWall() {
     const cDir = new THREE.DirectionalLight(0xffffff, 1.18);
     cDir.position.set(4.2, 9.2, 6.8);
     cDir.castShadow = true;
-    cDir.shadow.mapSize.set(2048, 2048);
+    const consMobilePerf = window.matchMedia('(max-width: 768px)').matches;
+    cDir.shadow.mapSize.set(consMobilePerf ? 512 : 2048, consMobilePerf ? 512 : 2048);
     cDir.shadow.camera.near = 0.35;
     cDir.shadow.camera.far = 36;
     cDir.shadow.camera.left = -3.6;
@@ -2667,6 +2791,7 @@ function initConstructionWall() {
         const w = consStage.clientWidth;
         const h = consStage.clientHeight;
         if (w < 2 || h < 2) return;
+        applyConsPixelRatio();
         consRenderer.setSize(w, h, false);
         consCamera.aspect = w / h;
         consCamera.updateProjectionMatrix();
@@ -2855,6 +2980,7 @@ function initConstructionWall() {
 
     (async () => {
         try {
+            consStage?.classList.remove('is-ready');
             const [voidT, bionObj, zenRoot, clipsObj] = await Promise.all([
                 loadVoidTemplateForWall(),
                 loadObj('./assets/models/bion.obj'),
@@ -3424,6 +3550,7 @@ function initConstructionWall() {
                 consRenderer.compile(consScene, consCamera);
             }
             consRenderer.render(consScene, consCamera);
+            consStage?.classList.add('is-ready');
 
             /** Сводит onEnter + refresh + fallback в один rAF — без двойного playWallAnim */
             let consPlayEnqueueRaf = null;
@@ -3751,11 +3878,42 @@ function initConstructionWall() {
             console.warn('Construction wall:', e);
             consLoopRestartFn = null;
             consFallback?.removeAttribute('hidden');
+            consStage?.classList.add('is-ready');
         }
     })();
 }
 
-initConstructionWall();
+function scheduleHeavySectionInit(sectionId, initFn) {
+    const el = document.getElementById(sectionId);
+    if (!el) return;
+    let ran = false;
+    const run = () => {
+        if (ran) return;
+        ran = true;
+        initFn();
+    };
+    if (window.location.hash === `#${sectionId}`) {
+        run();
+        return;
+    }
+    if (!('IntersectionObserver' in window)) {
+        run();
+        return;
+    }
+    const io = new IntersectionObserver(
+        (entries) => {
+            if (entries.some((e) => e.isIntersecting)) {
+                run();
+                io.disconnect();
+            }
+        },
+        { rootMargin: '420px 0px', threshold: 0 }
+    );
+    io.observe(el);
+}
+
+scheduleHeavySectionInit('construction', initConstructionWall);
+scheduleHeavySectionInit('assembly', initAssemblyViewer);
 
 // =============================================
 // Section titles entrance

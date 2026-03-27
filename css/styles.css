@@ -1035,6 +1035,23 @@ section[id] {
 .section-stage-card .assembly-mix-note {
     margin-top: 14px;
 }
+.stage-loader {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    font-size: 14px;
+    color: var(--c-text2);
+    background: rgba(255, 255, 255, 0.94);
+    pointer-events: none;
+}
+.construction-stage.is-ready .construction-loader,
+.assembly-stage.is-ready .assembly-loader {
+    display: none;
+}
 .construction-stage {
     width: 100%;
     max-width: 900px;
@@ -1119,44 +1136,65 @@ section[id] {
     }
 }
 
-/* Modular #material — узкий планшет и mobile: одна колонка, порядок как в DOM */
+/* Modular #material — узкий планшет и mobile: одна колонка; 3D и управление выше аккордеона */
 @media (max-width: 900px) {
+    .modular-hero-stage {
+        padding: clamp(18px, 4vw, 28px);
+        margin-top: clamp(36px, 8vw, 56px);
+    }
     .modular-hero-inner {
         grid-template-columns: 1fr;
         grid-template-rows: auto auto auto;
         row-gap: clamp(14px, 2.8vw, 22px);
         column-gap: 0;
     }
-    .modular-hero-copy {
-        grid-column: 1;
-        grid-row: 1;
-        max-width: none;
-        text-align: center;
-        align-self: stretch;
-        padding-top: clamp(0px, 1vw, 10px);
-    }
     .modular-hero .hero-canvas-wrap,
     .modular-hero .modular-canvas-wrap {
         grid-column: 1;
-        grid-row: 2;
+        grid-row: 1;
         width: 100%;
         margin-left: 0;
         margin-right: 0;
         margin-top: 0;
-        max-height: min(62vh, 480px);
-        min-height: 260px;
+        max-height: min(68vh, 460px);
+        min-height: min(280px, 52vw);
+        aspect-ratio: 1 / 1;
     }
     .modular-controls {
         grid-column: 1;
-        grid-row: 3;
+        grid-row: 2;
         margin-top: 0;
         width: 100%;
     }
+    .modular-hero-copy {
+        grid-column: 1;
+        grid-row: 3;
+        max-width: none;
+        text-align: left;
+        align-self: stretch;
+        padding-top: clamp(4px, 1vw, 12px);
+    }
     .modular-accordion {
-        margin-left: auto;
-        margin-right: auto;
+        margin-left: 0;
+        margin-right: 0;
         max-width: 100%;
-        align-items: center;
+        align-items: stretch;
+        width: 100%;
+    }
+    .modular-acc-item {
+        width: 100%;
+        max-width: 100%;
+        scroll-margin-top: calc(var(--nav-h) + 16px);
+    }
+    .modular-acc-trigger {
+        width: 100%;
+        justify-content: flex-start;
+    }
+    .modular-acc-item.is-open .modular-acc-panel {
+        max-width: 100%;
+    }
+    .modular-acc-panel-inner {
+        max-width: 100% !important;
     }
     .modular-hero .facet-tab {
         min-height: 44px;
@@ -1199,8 +1237,12 @@ section[id] {
         background: rgba(255,255,255,.96);
         backdrop-filter: blur(20px);
         padding: 40px 22px;
+        padding-bottom: max(40px, env(safe-area-inset-bottom, 0px));
         gap: 24px;
         align-items: center;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
     }
     .nav-links.open a { font-size: 18px; }
     .nav-burger { display: flex; }
@@ -1263,7 +1305,11 @@ section[id] {
     }
     .section-stage-card {
         margin-top: 40px;
-        padding: clamp(20px, 4vw, 28px);
+        padding: clamp(16px, 3.5vw, 24px);
+    }
+    .construction-stage {
+        height: min(58vh, 440px);
+        min-height: 220px;
     }
     .assembly-stage {
         height: min(70vh, 560px);
@@ -1291,8 +1337,8 @@ section[id] {
     }
     .modular-hero .hero-canvas-wrap,
     .modular-hero .modular-canvas-wrap {
-        max-height: min(52vh, 340px);
-        min-height: 220px;
+        max-height: min(62vh, 380px);
+        min-height: 240px;
     }
     .modular-hero .hero-facet-benefit {
         min-height: auto;
