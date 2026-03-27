@@ -6,7 +6,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 gsap.registerPlugin(ScrollTrigger);
-console.log('%c[app.js v81] LOADED', 'color:lime;font-weight:bold;font-size:14px');
+console.log('%c[app.js v82] LOADED', 'color:lime;font-weight:bold;font-size:14px');
 
 /** Должна совпадать с проверкой после загрузки assembly: глобальный ScrollTrigger.refresh() сдвигает все триггеры и может вызвать onToggle(false) у соседних секций без последующего onToggle(true). */
 function isSectionInPlayViewport(sectionEl) {
@@ -1922,10 +1922,14 @@ function resetAssemblyToExploded(meshes) {
 function playAssemblyBuild(meshes) {
     if (!meshes?.length) return;
     if (asmBuildTL) asmBuildTL.kill();
+    applyExplodedPositions(meshes);
     meshes.forEach((m) => {
         m.visible = false;
+        const mat = m.material;
+        if (mat && mat.emissiveIntensity !== undefined) mat.emissiveIntensity = 0;
     });
     asmAssemblyComplete = false;
+    updateAssemblyCameraFit();
 
     const plan = assemblyMacroPlan;
     const steps = plan?.sequentialSteps;
