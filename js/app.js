@@ -6,7 +6,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 gsap.registerPlugin(ScrollTrigger);
-console.log('%c[app.js v92] LOADED', 'color:lime;font-weight:bold;font-size:14px');
+console.log('%c[app.js v95] LOADED', 'color:lime;font-weight:bold;font-size:14px');
 
 /** Должна совпадать с проверкой после загрузки assembly: глобальный ScrollTrigger.refresh() сдвигает все триггеры и может вызвать onToggle(false) у соседних секций без последующего onToggle(true). */
 function isSectionInPlayViewport(sectionEl) {
@@ -882,26 +882,75 @@ let consPrevCenterBand = false;
 /** План макро-съёмок (две смежные пары фасетов) — после загрузки bion.glb */
 let assemblyMacroPlan = null;
 
+/**
+ * Плавная адаптация сборки под любой мобильный экран: 0 = крупный планшет/десктоп, 1 = узкий телефон.
+ * Ориентация не важна — берём min(width,height). Диапазон 380…900 px покрывает от SE до Pro Max и планшеты.
+ */
+function getAssemblyViewportAdaptT() {
+    if (typeof window === 'undefined') return 0;
+    const s = Math.min(window.innerWidth, window.innerHeight);
+    return THREE.MathUtils.clamp((900 - s) / (900 - 380), 0, 1);
+}
+
+/** Минимальный множитель разлёта граней при t=1 (камера ближе — иначе вылезают за холст) */
+const ASM_EXPLODE_SCALE_MIN = 0.62;
+
+/** Сборка: FOV плавно шире на маленьких экранах */
+const ASM_CAMERA_FOV_DEFAULT = 46;
+const ASM_CAMERA_FOV_COMPACT = 50;
+
+function applyAssemblyCameraViewportFov() {
+    if (!asmCamera) return;
+    const t = getAssemblyViewportAdaptT();
+    asmCamera.fov = THREE.MathUtils.lerp(ASM_CAMERA_FOV_DEFAULT, ASM_CAMERA_FOV_COMPACT, t);
+    asmCamera.updateProjectionMatrix();
+}
+
 function getAssemblyCameraFitVectors() {
     if (!asmCamera || !asmModelRoot || asmModelRoot.children.length === 0) return null;
     const r0 = asmModelRoot.userData.assembledBoundingRadius;
     if (r0 == null || !isFinite(r0) || r0 <= 0) return null;
 
+    const t = getAssemblyViewportAdaptT();
     /** >1 — отодвигаем камеру: куб целиком в кадре при вращении после пошаговой сборки */
-    const padding = 1.26;
+    const padding = THREE.MathUtils.lerp(1.26, 1.1, t);
     const r = r0 * padding;
     const vHalf = THREE.MathUtils.degToRad(asmCamera.fov * 0.5);
     const distV = r / Math.tan(vHalf);
     const distH = r / (Math.tan(vHalf) * Math.max(asmCamera.aspect, 0.001));
-    const dist = Math.max(distV, distH, 0.5) * 1.04;
+    const dist = Math.max(distV, distH, 0.5) * THREE.MathUtils.lerp(1.04, 0.93, t);
+    const yCam = THREE.MathUtils.lerp(0.32, 0.28, t);
 
     return {
         dist,
-        pos: new THREE.Vector3(0, 0.32, dist),
+        pos: new THREE.Vector3(0, yCam, dist),
         look: new THREE.Vector3(0, 0, 0),
         near: Math.max(0.02, dist * 0.02),
         far: Math.max(200, dist * 4),
     };
+}
+
+/** Пересчёт разлёта при смене размера окна / ориентации (explodedPos + при необходимости позиции) */
+function refreshAssemblyExplodedPositions(meshes) {
+    if (!meshes?.length) return;
+    const t = getAssemblyViewportAdaptT();
+    const k = THREE.MathUtils.lerp(1, ASM_EXPLODE_SCALE_MIN, t);
+    meshes.forEach((mesh) => {
+        const dir = mesh.userData.asmExplodeDir;
+        const len = mesh.userData.asmExplodeLen;
+        const ap = mesh.userData.assembledPos;
+        if (!dir || len == null || !ap) return;
+        const prev = mesh.position.clone();
+        mesh.position.copy(ap);
+        mesh.updateMatrixWorld(true);
+        const assembledWorld = new THREE.Vector3();
+        mesh.getWorldPosition(assembledWorld);
+        const explodedWorld = assembledWorld.clone().addScaledVector(dir, len * k);
+        mesh.parent.updateMatrixWorld(true);
+        const invParent = new THREE.Matrix4().copy(mesh.parent.matrixWorld).invert();
+        mesh.userData.explodedPos = explodedWorld.clone().applyMatrix4(invParent);
+        mesh.position.copy(prev);
+    });
 }
 
 function updateAssemblyCameraFit() {
@@ -1873,7 +1922,7 @@ function buildAssemblyMacroPlan(meshes, modelRoot) {
  */
 function computeAssemblyMacroCamera(stat, mover, preLocal, outwardWorld, extraBoundsMeshes = [], cubikCenterWorld) {
     /** Запас по полю зрения — края граней и защёлки остаются в кадре. */
-    const padding = 1.32;
+    const padding = THREE.MathUtils.lerp(1.32, 1.17, getAssemblyViewportAdaptT());
     const lookAt = cubikCenterWorld ? cubikCenterWorld.clone() : new THREE.Vector3(0, 0, 0);
     const s0 = stat.position.clone();
     const m0 = mover.position.clone();
@@ -2272,7 +2321,7 @@ function initAssemblyViewer() {
     asmScene = new THREE.Scene();
     asmScene.background = new THREE.Color(0xffffff);
 
-    asmCamera = new THREE.PerspectiveCamera(46, 1, 0.08, 200);
+    asmCamera = new THREE.PerspectiveCamera(ASM_CAMERA_FOV_DEFAULT, 1, 0.08, 200);
     asmCamera.position.set(0, 0, 5.5);
 
     asmRenderer = new THREE.WebGLRenderer({
@@ -2318,10 +2367,13 @@ function initAssemblyViewer() {
         applyAsmPixelRatio();
         asmRenderer.setSize(w, h);
         asmCamera.aspect = w / h;
-        asmCamera.updateProjectionMatrix();
+        applyAssemblyCameraViewportFov();
         const tlBusy = Boolean(asmBuildTL?.isActive?.());
         if (!tlBusy) {
             updateAssemblyCameraFit();
+            if (assemblyMeshesRef?.length) {
+                refreshAssemblyExplodedPositions(assemblyMeshesRef);
+            }
         }
     }
     resizeAsm();
@@ -2424,6 +2476,8 @@ function initAssemblyViewer() {
                 const rAsm = assembledSphere.radius;
                 const expandBase = Math.max(2.4, maxD * scale * 0.95);
                 const expandW = Math.min(expandBase, Math.max(1.05, rAsm * 1.62));
+                const explodeT = getAssemblyViewportAdaptT();
+                const asmExplodeScale = THREE.MathUtils.lerp(1, ASM_EXPLODE_SCALE_MIN, explodeT);
 
                 updateAssemblyCameraFit();
                 asmScene.updateMatrixWorld(true);
@@ -2465,7 +2519,12 @@ function initAssemblyViewer() {
                     else if (facing < -0.4) mult = 1.92;
                     else if (facing < -0.15) mult = 1.68;
 
-                    const explodedWorldOrigin = assembledWorld.clone().addScaledVector(dir, expandW * mult);
+                    mesh.userData.asmExplodeDir = dir.clone();
+                    mesh.userData.asmExplodeLen = expandW * mult;
+
+                    const explodedWorldOrigin = assembledWorld
+                        .clone()
+                        .addScaledVector(dir, expandW * mult * asmExplodeScale);
 
                     mesh.parent.updateMatrixWorld(true);
                     const invParent = new THREE.Matrix4().copy(mesh.parent.matrixWorld).invert();
