@@ -968,10 +968,21 @@ const CONS_WALL_SEGMENT_RAD = THREE.MathUtils.degToRad(135);
 const CONS_WALL_ROT_NORMAL = 0.0028;
 const CONS_WALL_ROT_FAST = CONS_WALL_ROT_NORMAL * 2.6;
 
+/** Масштаб кадра: приращения rotation.* ниже подобраны под ~60 fps; без этого на слабом FPS вращение «ползёт». */
+const ANIM_DT_REF_FPS = 60;
+let animPrevFrameMs = performance.now();
+
 (function animate() {
     requestAnimationFrame(animate);
+    const animNow = performance.now();
+    let animDtSec = (animNow - animPrevFrameMs) / 1000;
+    animPrevFrameMs = animNow;
+    if (!Number.isFinite(animDtSec) || animDtSec <= 0) animDtSec = 1 / ANIM_DT_REF_FPS;
+    if (animDtSec > 0.05) animDtSec = 0.05;
+    const animFrameScale = animDtSec * ANIM_DT_REF_FPS;
+
     if (heroRenderer && heroScene && heroCamera) {
-        heroRotationY += HERO_ROT_SPEED;
+        heroRotationY += HERO_ROT_SPEED * animFrameScale;
         if (heroCompositionRoot) {
             heroCompositionRoot.rotation.y = heroRotationY;
             heroCompositionRoot.rotation.x = 0;
@@ -1002,7 +1013,7 @@ const CONS_WALL_ROT_FAST = CONS_WALL_ROT_NORMAL * 2.6;
 
     if (asmRenderer && asmScene && asmCamera) {
         if (asmAssemblyComplete && asmModelRoot && asmInBand) {
-            asmModelRoot.rotation.y -= 0.0056;
+            asmModelRoot.rotation.y -= 0.0056 * animFrameScale;
             asmCamera.lookAt(0, 0, 0);
         }
         asmRenderer.render(asmScene, asmCamera);
@@ -1023,7 +1034,7 @@ const CONS_WALL_ROT_FAST = CONS_WALL_ROT_NORMAL * 2.6;
                 const segIndex = Math.max(0, Math.floor(deltaBefore / CONS_WALL_SEGMENT_RAD));
                 rotSpeed = segIndex % 2 === 0 ? CONS_WALL_ROT_FAST : CONS_WALL_ROT_NORMAL;
             }
-            consWallRoot.rotation.y += rotSpeed;
+            consWallRoot.rotation.y += rotSpeed * animFrameScale;
             const deltaAfter =
                 ud.consIdleStartY != null ? consWallRoot.rotation.y - ud.consIdleStartY : 0;
             if (ud.consIdleStartY != null) {
