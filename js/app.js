@@ -10,6 +10,32 @@ import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometr
 gsap.registerPlugin(ScrollTrigger);
 console.log('%c[app.js v106] LOADED', 'color:lime;font-weight:bold;font-size:14px');
 
+/** Пути к моделям от каталога модуля — работает при деплое в подпапку (GitHub Pages и т.п.). */
+const ASSETS_BASE = new URL('../assets/', import.meta.url).href;
+function assetModelUrl(fileName) {
+    return new URL(`models/${fileName}`, ASSETS_BASE).href;
+}
+
+/** Тот же CDN, что и importmap для three — надёжнее gstatic на части мобильных сетей / регионов. */
+const DRACO_DECODER_URL = 'https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/libs/draco/gltf/';
+
+/**
+ * Общие настройки WebGL для телефонов, планшетов и десктопа — без привязки к ширине вьюпорта.
+ * `logarithmicDepthBuffer` на части мобильных/встроенных GPU ломает создание контекста.
+ * `powerPreference: high-performance` иногда выбирает нестабильный GPU на Android.
+ */
+function createCompatWebGLRenderer(options) {
+    const { canvas, ...rest } = options;
+    return new THREE.WebGLRenderer({
+        antialias: rest.antialias ?? true,
+        alpha: rest.alpha ?? false,
+        logarithmicDepthBuffer: rest.logarithmicDepthBuffer ?? false,
+        powerPreference: rest.powerPreference ?? 'default',
+        ...rest,
+        canvas,
+    });
+}
+
 /** Должна совпадать с проверкой после загрузки assembly: глобальный ScrollTrigger.refresh() сдвигает все триггеры и может вызвать onToggle(false) у соседних секций без последующего onToggle(true). */
 function isSectionInPlayViewport(sectionEl) {
     if (!sectionEl) return false;
@@ -436,7 +462,7 @@ heroScene.background = new THREE.Color(0xffffff);
 heroCamera = new THREE.PerspectiveCamera(32, 2.5, 0.1, 500);
 heroCamera.position.set(0, 1.2, 34);
 
-heroRenderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true });
+heroRenderer = createCompatWebGLRenderer({ canvas });
 function getHeroPixelRatioCap() {
     return window.matchMedia('(max-width: 900px)').matches ? 1.25 : 2;
 }
@@ -445,6 +471,7 @@ function applyHeroPixelRatio() {
     heroRenderer.setPixelRatio(Math.min(window.devicePixelRatio, getHeroPixelRatioCap()));
 }
 applyHeroPixelRatio();
+heroRenderer.outputColorSpace = THREE.SRGBColorSpace;
 heroRenderer.toneMapping = THREE.ACESFilmicToneMapping;
 heroRenderer.toneMappingExposure = 1.2;
 
@@ -466,17 +493,17 @@ const sharedMaterial = new THREE.MeshStandardMaterial({
 const MODEL_SCALE = 7.35;
 
 const modelFiles = [
-    { file: './assets/models/bion.glb', fixGeometry: false, format: 'gltf', color: PALETTE_FLORA_VOID_WHITE },
-    { file: './assets/models/void.glb', fixGeometry: false, format: 'gltf', color: PALETTE_FLORA_VOID_WHITE },
+    { file: assetModelUrl('bion.glb'), fixGeometry: false, format: 'gltf', color: PALETTE_FLORA_VOID_WHITE },
+    { file: assetModelUrl('void.glb'), fixGeometry: false, format: 'gltf', color: PALETTE_FLORA_VOID_WHITE },
     /** Полный Zen-cubik: zen_facet.glb в сцене с «раздутым» root-bbox нормализуется почти как void → выглядит вторым Void. */
-    { file: './assets/models/zen.glb', fixGeometry: false, format: 'gltf', color: PALETTE_ZEN_FACE_GREY },
+    { file: assetModelUrl('zen.glb'), fixGeometry: false, format: 'gltf', color: PALETTE_ZEN_FACE_GREY },
     /** GLB точнее и детальнее OBJ */
-    { file: './assets/models/zen-2.glb', fixGeometry: true, format: 'gltf', color: PALETTE_ZEN_FACE_GREY },
+    { file: assetModelUrl('zen-2.glb'), fixGeometry: true, format: 'gltf', color: PALETTE_ZEN_FACE_GREY },
 ];
 
 const loadedModels = new Array(modelFiles.length).fill(null);
 const dracoHero = new DRACOLoader();
-dracoHero.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+dracoHero.setDecoderPath(DRACO_DECODER_URL);
 const heroGltfLoader = new GLTFLoader();
 heroGltfLoader.setDRACOLoader(dracoHero);
 
@@ -1346,10 +1373,10 @@ const ASSEMBLY_SLOT_COLORS = {
  */
 const ASSEMBLY_MIXED_CUBE = {
     sources: {
-        bion: './assets/models/bion.glb',
-        void: './assets/models/void.glb',
+        bion: assetModelUrl('bion.glb'),
+        void: assetModelUrl('void.glb'),
         /** Полный куб Zen (не zen-2 — другой продукт). Масштаб выравнивается normalize + assemblyMeshFromOtherCubik. */
-        zen: './assets/models/zen.glb',
+        zen: assetModelUrl('zen.glb'),
     },
     /** Какой куб даёт грань на слоте (`source` — ключ из `sources`). */
     slots: [
@@ -2434,12 +2461,9 @@ function initAssemblyViewer() {
     asmCamera = new THREE.PerspectiveCamera(ASM_CAMERA_FOV_DEFAULT, 1, 0.08, 200);
     asmCamera.position.set(0, 0, 5.5);
 
-    asmRenderer = new THREE.WebGLRenderer({
+    asmRenderer = createCompatWebGLRenderer({
         canvas: asmCanvas,
-        antialias: true,
         alpha: false,
-        logarithmicDepthBuffer: true,
-        powerPreference: 'high-performance',
     });
     function applyAsmPixelRatio() {
         if (!asmRenderer) return;
@@ -2532,12 +2556,12 @@ function initAssemblyViewer() {
     }
 
     const dracoLoader = new DRACOLoader();
-    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+    dracoLoader.setDecoderPath(DRACO_DECODER_URL);
     const gltfLoader = new GLTFLoader();
     gltfLoader.setDRACOLoader(dracoLoader);
 
     gltfLoader.load(
-        './assets/models/bion.glb',
+        assetModelUrl('bion.glb'),
         (gltf) => {
             void (async () => {
                 asmCanvas?.classList.add('is-assembly-preparing');
@@ -2998,12 +3022,9 @@ function initConstructionWall() {
     consCamera = new THREE.PerspectiveCamera(38, 1, 0.06, 200);
     consCamera.position.set(0, 0.15, 6);
 
-    consRenderer = new THREE.WebGLRenderer({
+    consRenderer = createCompatWebGLRenderer({
         canvas: consCanvas,
-        antialias: true,
         alpha: false,
-        logarithmicDepthBuffer: true,
-        powerPreference: 'high-performance',
     });
     function applyConsPixelRatio() {
         if (!consRenderer) return;
@@ -3116,6 +3137,9 @@ function initConstructionWall() {
         });
 
     const consGltfLoader = new GLTFLoader();
+    const consDracoLoader = new DRACOLoader();
+    consDracoLoader.setDecoderPath(DRACO_DECODER_URL);
+    consGltfLoader.setDRACOLoader(consDracoLoader);
     const loadConsGltf = (url) =>
         new Promise((resolve, reject) => {
             consGltfLoader.load(url, resolve, undefined, reject);
@@ -3123,24 +3147,24 @@ function initConstructionWall() {
 
     async function loadZenCubikRoot() {
         try {
-            const gltf = await loadConsGltf('./assets/models/zen.glb');
+            const gltf = await loadConsGltf(assetModelUrl('zen.glb'));
             const root = gltf.scene.clone(true);
             stripGltfLightsAndCameras(root);
             return root;
         } catch (err) {
             console.warn('Construction: zen.glb failed, using zen.obj', err);
-            const o = await loadObj('./assets/models/zen.obj');
+            const o = await loadObj(assetModelUrl('zen.obj'));
             return o.clone(true);
         }
     }
 
     /** void.glb по геометрии совмещаем с нормализованным void.obj — позиция в сетке как у OBJ. */
     async function loadVoidTemplateForWall() {
-        const voidObj = await loadObj('./assets/models/void.obj');
+        const voidObj = await loadObj(assetModelUrl('void.obj'));
         const voidRef = voidObj.clone(true);
         normalizeObjectToUnitAxesBox(voidRef);
         try {
-            const gltf = await loadConsGltf('./assets/models/void.glb');
+            const gltf = await loadConsGltf(assetModelUrl('void.glb'));
             const voidT = gltf.scene.clone(true);
             stripGltfLightsAndCameras(voidT);
             normalizeConstructionCubikToUnitBox(voidT);
@@ -3291,9 +3315,9 @@ function initConstructionWall() {
             consStage?.classList.remove('is-ready');
             const [voidT, bionObj, zenRoot, clipsObj] = await Promise.all([
                 loadVoidTemplateForWall(),
-                loadObj('./assets/models/bion.obj'),
+                loadObj(assetModelUrl('bion.obj')),
                 loadZenCubikRoot(),
-                loadObj('./assets/models/clips.obj'),
+                loadObj(assetModelUrl('clips.obj')),
             ]);
 
             consFallback?.setAttribute('hidden', '');
