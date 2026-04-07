@@ -1,12 +1,14 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+THREE.ColorManagement.enabled = true;
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 gsap.registerPlugin(ScrollTrigger);
-console.log('%c[app.js v95] LOADED', 'color:lime;font-weight:bold;font-size:14px');
+console.log('%c[app.js v106] LOADED', 'color:lime;font-weight:bold;font-size:14px');
 
 /** Должна совпадать с проверкой после загрузки assembly: глобальный ScrollTrigger.refresh() сдвигает все триггеры и может вызвать onToggle(false) у соседних секций без последующего onToggle(true). */
 function isSectionInPlayViewport(sectionEl) {
@@ -392,6 +394,9 @@ if (document.getElementById('material')) {
 // =============================================
 // Three.js — modular hero: cubik + табы Bion / Void / Zen / Zen/2
 // =============================================
+/** Modular hero: наклон cubik (видна верхняя грань). Секция assembly без наклона модели — только камера. */
+const HERO_BASE_TILT_X = 0.3;
+
 const canvas = document.getElementById('heroCanvas');
 const canvasWrap = document.getElementById('heroCanvasWrap');
 const loaderEl = document.getElementById('heroLoader');
@@ -404,6 +409,15 @@ let heroCompositionRoot = null;
 
 const HERO_ROT_SPEED = -0.0075;
 const objLoader = new OBJLoader();
+
+/**
+ * Каталог (sRGB): Void/Flora — светлый «белый»; Bion — тёплый беж.
+ * Раньше hero красил все GLB в #f4f4f4, а сборка — бежевые грани Bion в #ede6dc → белый и беж «не сходились» между блоками и с линейками.
+ */
+const PALETTE_FLORA_VOID_WHITE = 0xf4f4f4;
+/** Beige = тот же hex, что свотч в hero (`index.html` #E1B589) — верх Void в секции assembly */
+const PALETTE_BEIGE_ASSEMBLY_VOID = 0xe1b589;
+const PALETTE_ZEN_FACE_GREY = 0x8c8f8c;
 
 function cleanMeshGeometry(mesh, fixGeometry) {
     if (!mesh.isMesh || !mesh.geometry?.isBufferGeometry) return;
@@ -443,23 +457,21 @@ fill.position.set(-5, 3, -4);
 heroScene.add(fill);
 
 const sharedMaterial = new THREE.MeshStandardMaterial({
-    color: 0xf4f4f4,
+    color: new THREE.Color().setHex(PALETTE_FLORA_VOID_WHITE, THREE.SRGBColorSpace),
     roughness: 0.6,
     metalness: 0.05,
 });
 
 /** Базовый масштаб hero-модели: больше значение → крупнее cubik в кадре */
 const MODEL_SCALE = 7.35;
-/** Наклон как на референсе: чуть сверху, видна верхняя грань (турнтейбл по центру) */
-const HERO_BASE_TILT_X = 0.3;
 
 const modelFiles = [
-    { file: './assets/models/bion.glb', fixGeometry: false, format: 'gltf' },
-    { file: './assets/models/void.glb', fixGeometry: false, format: 'gltf' },
+    { file: './assets/models/bion.glb', fixGeometry: false, format: 'gltf', color: PALETTE_FLORA_VOID_WHITE },
+    { file: './assets/models/void.glb', fixGeometry: false, format: 'gltf', color: PALETTE_FLORA_VOID_WHITE },
     /** Полный Zen-cubik: zen_facet.glb в сцене с «раздутым» root-bbox нормализуется почти как void → выглядит вторым Void. */
-    { file: './assets/models/zen.glb', fixGeometry: false, format: 'gltf' },
+    { file: './assets/models/zen.glb', fixGeometry: false, format: 'gltf', color: PALETTE_ZEN_FACE_GREY },
     /** GLB точнее и детальнее OBJ */
-    { file: './assets/models/zen-2.glb', fixGeometry: true, format: 'gltf' },
+    { file: './assets/models/zen-2.glb', fixGeometry: true, format: 'gltf', color: PALETTE_ZEN_FACE_GREY },
 ];
 
 const loadedModels = new Array(modelFiles.length).fill(null);
@@ -506,7 +518,7 @@ function loadHeroModelAt(index) {
         heroGltfLoader.load(
             file,
             (gltf) => {
-                loadedModels[index] = buildHeroModelGroup(gltf.scene, fixGeometry);
+                loadedModels[index] = buildHeroModelGroup(gltf.scene, fixGeometry, modelFiles[index].color);
                 onHeroModelLoaded(index);
             },
             undefined,
@@ -516,7 +528,7 @@ function loadHeroModelAt(index) {
         objLoader.load(
             file,
             (obj) => {
-                loadedModels[index] = buildHeroModelGroup(obj, fixGeometry);
+                loadedModels[index] = buildHeroModelGroup(obj, fixGeometry, modelFiles[index].color);
                 onHeroModelLoaded(index);
             },
             undefined,
@@ -529,7 +541,7 @@ function loadHeroModelAt(index) {
  * Группа вращается вокруг Y; меш внутри отцентрован в (0,0,0) и без «левого» quaternion из OBJ —
  * тогда все cubiks визуально крутятся в одну сторону с одинаковой скоростью.
  */
-function buildHeroModelGroup(obj, fixGeometry = false) {
+function buildHeroModelGroup(obj, fixGeometry = false, colorHex = PALETTE_FLORA_VOID_WHITE) {
     obj.rotation.set(0, 0, 0);
     obj.quaternion.set(0, 0, 0, 1);
 
@@ -537,6 +549,7 @@ function buildHeroModelGroup(obj, fixGeometry = false) {
         if (child.isMesh) {
             cleanMeshGeometry(child, fixGeometry);
             const mat = sharedMaterial.clone();
+            mat.color.setHex(colorHex, THREE.SRGBColorSpace);
             if (fixGeometry) {
                 mat.polygonOffset = true;
                 mat.polygonOffsetFactor = 1;
@@ -830,7 +843,7 @@ function fitHeroCamera(groups, opts = {}) {
 
 function loadHeroFallbackBox(index) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), sharedMaterial.clone());
-    loadedModels[index] = buildHeroModelGroup(mesh, false);
+    loadedModels[index] = buildHeroModelGroup(mesh, false, modelFiles[index].color);
     onHeroModelLoaded(index);
 }
 
@@ -869,6 +882,8 @@ let asmRenderer;
 let asmScene;
 let asmCamera;
 let asmModelRoot;
+/** Плоскость ShadowMaterial под кубом — лёгкая тень «от пола» */
+let asmShadowCatcher = null;
 let asmAssemblyComplete = false;
 /** Сбрасывает отложенный play со скролла (задаётся в initAssemblyViewer) */
 let cancelAssemblyScrollPlayRaf = () => {};
@@ -879,7 +894,7 @@ let consStageVisibilityPause = () => {};
 let consStageVisibilityPlay = () => {};
 let asmPrevCenterBand = false;
 let consPrevCenterBand = false;
-/** План макро-съёмок (две смежные пары фасетов) — после загрузки bion.glb */
+/** План пошаговой стыковки граней (пары + последовательность) — после загрузки bion.glb */
 let assemblyMacroPlan = null;
 
 /**
@@ -895,9 +910,32 @@ function getAssemblyViewportAdaptT() {
 /** Минимальный множитель разлёта граней при t=1 (камера ближе — иначе вылезают за холст) */
 const ASM_EXPLODE_SCALE_MIN = 0.62;
 
-/** Сборка: FOV плавно шире на маленьких экранах */
-const ASM_CAMERA_FOV_DEFAULT = 46;
-const ASM_CAMERA_FOV_COMPACT = 50;
+/** Короче разлёт относительно старого кадра — стык крупным планом без сильного «вылета» деталей. */
+const ASM_ASSEMBLY_EXPLODE_LEN_SCALE = 0.78;
+
+/**
+ * Как у modular hero (PerspectiveCamera 32°): тот же масштаб перспективы на секции сборки.
+ * На узких экранах чуть шире — по аналогии с hero pixel ratio breakpoint.
+ */
+const ASM_CAMERA_FOV_DEFAULT = 32;
+const ASM_CAMERA_FOV_COMPACT = 36;
+
+/**
+ * Азимут вокруг Y от базового вида «с +Z»: отрицательный угол — камера слева-спереди (три четверти).
+ */
+const ASM_CAMERA_ORBIT_Y_DEG = -40;
+
+/** Множитель расстояния камеры меньше 1 — ближе к кубу (~15 % при 0.85). */
+const ASM_CAMERA_DISTANCE_ZOOM = 0.85;
+
+/** Над горизонтальной плоскостью через центр куба: выше → лучше видна верхняя грань. */
+const ASM_CAMERA_ELEVATION_DEG = 30;
+
+/**
+ * Точка lookAt по Y относительно центра куба: −spanY×frac (доля от «высоты» спана).
+ * Меньше frac → взгляд ближе к горизонтали через центр → куб ниже в кадре. Больше frac → сильнее «вниз» по кубу.
+ */
+const ASM_CAMERA_LOOK_Y_FRAC = 0.08;
 
 function applyAssemblyCameraViewportFov() {
     if (!asmCamera) return;
@@ -906,28 +944,78 @@ function applyAssemblyCameraViewportFov() {
     asmCamera.updateProjectionMatrix();
 }
 
-function getAssemblyCameraFitVectors() {
+/**
+ * Ракурс «сверху в три четверти»: азимут + угол возвышения (ASM_CAMERA_ELEVATION_DEG), взгляд чуть ниже центра.
+ * Геометрия куба без наклона — только камера.
+ * @param {{ closer?: boolean }} opts — closer: крупнее план на время стыковки; иначе чуть дальше для вращения.
+ */
+function computeAssemblyCameraFitHeroStyle(opts = {}) {
+    const closer = opts.closer === true;
     if (!asmCamera || !asmModelRoot || asmModelRoot.children.length === 0) return null;
     const r0 = asmModelRoot.userData.assembledBoundingRadius;
     if (r0 == null || !isFinite(r0) || r0 <= 0) return null;
 
-    const t = getAssemblyViewportAdaptT();
-    /** >1 — отодвигаем камеру: куб целиком в кадре при вращении после пошаговой сборки */
-    const padding = THREE.MathUtils.lerp(1.26, 1.1, t);
-    const r = r0 * padding;
+    const narrow = typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches;
+    const basePad = narrow ? 1.16 : 1.32;
+    const closeness = closer ? 0.93 : 1.06;
+    const padding = basePad * closeness;
+    const paddingV = padding * (narrow ? 1.06 : 1.12);
+
+    const spanX = 2 * r0;
+    const spanY = 2 * r0;
+    const spanZ = 2 * r0;
+
+    applyAssemblyCameraViewportFov();
+
     const vHalf = THREE.MathUtils.degToRad(asmCamera.fov * 0.5);
-    const distV = r / Math.tan(vHalf);
-    const distH = r / (Math.tan(vHalf) * Math.max(asmCamera.aspect, 0.001));
-    const dist = Math.max(distV, distH, 0.5) * THREE.MathUtils.lerp(1.04, 0.93, t);
-    const yCam = THREE.MathUtils.lerp(0.32, 0.28, t);
+    const tanHalfV = Math.tan(vHalf);
+    const tanHalfH = tanHalfV * Math.max(asmCamera.aspect, 0.01);
+
+    const distV = (spanY * paddingV) / (2 * tanHalfV);
+    const distH = (spanX * padding) / (2 * tanHalfH);
+    const distZ = (spanZ * padding) / (2 * tanHalfV);
+    const minDist = narrow ? r0 * 2.15 : r0 * 3.1;
+    const distBase = Math.max(distV, distH, distZ, minDist);
+    /** Запас по лучу при подъёме камеры × приближение ASM_CAMERA_DISTANCE_ZOOM */
+    const dist = distBase * 1.1 * ASM_CAMERA_DISTANCE_ZOOM;
+
+    const lookYOffset = -spanY * ASM_CAMERA_LOOK_Y_FRAC;
+
+    const orbit = THREE.MathUtils.degToRad(ASM_CAMERA_ORBIT_Y_DEG);
+    const elev = THREE.MathUtils.degToRad(ASM_CAMERA_ELEVATION_DEG);
+    const cosEl = Math.cos(elev);
+    const sinEl = Math.sin(elev);
+    const sinO = Math.sin(orbit);
+    const cosO = Math.cos(orbit);
+    const ch = dist * cosEl;
+    const pos = new THREE.Vector3(-ch * sinO, dist * sinEl, ch * cosO);
 
     return {
         dist,
-        pos: new THREE.Vector3(0, yCam, dist),
-        look: new THREE.Vector3(0, 0, 0),
-        near: Math.max(0.02, dist * 0.02),
+        pos,
+        look: new THREE.Vector3(0, lookYOffset, 0),
+        near: Math.max(0.02, dist * 0.015),
         far: Math.max(200, dist * 4),
     };
+}
+
+function getAssemblyCameraFitVectors() {
+    return computeAssemblyCameraFitHeroStyle({ closer: false });
+}
+
+/** Крупный план стыковки — тот же ракурс что modular hero, чуть ближе камера */
+function getAssemblyCloseUpCameraFit() {
+    return computeAssemblyCameraFitHeroStyle({ closer: true });
+}
+
+function applyAssemblyCloseUpCamera() {
+    const fit = getAssemblyCloseUpCameraFit();
+    if (!fit || !asmCamera) return;
+    asmCamera.position.copy(fit.pos);
+    asmCamera.lookAt(fit.look);
+    asmCamera.near = fit.near;
+    asmCamera.far = fit.far;
+    asmCamera.updateProjectionMatrix();
 }
 
 /** Пересчёт разлёта при смене размера окна / ориентации (explodedPos + при необходимости позиции) */
@@ -961,6 +1049,26 @@ function updateAssemblyCameraFit() {
     asmCamera.near = fit.near;
     asmCamera.far = fit.far;
     asmCamera.updateProjectionMatrix();
+}
+
+function updateAssemblyShadowCatcher() {
+    if (!asmShadowCatcher || !asmModelRoot || asmModelRoot.children.length === 0) return;
+    if (!asmAssemblyComplete) {
+        asmShadowCatcher.visible = false;
+        return;
+    }
+    asmModelRoot.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(asmModelRoot);
+    if (box.isEmpty()) return;
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const span = Math.max(size.x, size.z, 0.2);
+    /** Только собранный куб; радиус ×2 от прежнего коэффициента */
+    const worldR = span * 0.96;
+    asmShadowCatcher.visible = true;
+    asmShadowCatcher.scale.set(worldR, worldR, 1);
+    asmShadowCatcher.position.set(center.x, box.min.y - 0.004, center.z);
+    asmShadowCatcher.updateMatrixWorld(true);
 }
 
 /** Секция «Клипса»: стенка 3×3 + клипсы */
@@ -1014,7 +1122,8 @@ const CONS_SIDE_FACET_DOT = 0.52;
 
 /** Construction: по 135° чередуем скорость — быстро к вставке задних клипс, потом обычно, снова быстро… */
 const CONS_WALL_SEGMENT_RAD = THREE.MathUtils.degToRad(135);
-const CONS_WALL_ROT_NORMAL = 0.0028;
+/** Тернтейбл (вращение стенки после сборки): базовая скорость; ×2.6 для «быстрых» сегментов */
+const CONS_WALL_ROT_NORMAL = 0.0056;
 const CONS_WALL_ROT_FAST = CONS_WALL_ROT_NORMAL * 2.6;
 
 /** Масштаб кадра: приращения rotation.* ниже подобраны под ~60 fps; без этого на слабом FPS вращение «ползёт». */
@@ -1061,9 +1170,17 @@ let animPrevFrameMs = performance.now();
     consPrevCenterBand = consInBand;
 
     if (asmRenderer && asmScene && asmCamera) {
+        if (asmInBand && asmShadowCatcher && asmModelRoot?.children?.length) {
+            updateAssemblyShadowCatcher();
+        }
         if (asmAssemblyComplete && asmModelRoot && asmInBand) {
-            asmModelRoot.rotation.y -= 0.0056 * animFrameScale;
-            asmCamera.lookAt(0, 0, 0);
+            asmModelRoot.rotation.y -= 0.0065 * animFrameScale;
+            const rAsm = asmModelRoot.userData?.assembledBoundingRadius;
+            const lookYAsm =
+                rAsm != null && isFinite(rAsm) && rAsm > 0
+                    ? -2 * rAsm * ASM_CAMERA_LOOK_Y_FRAC
+                    : 0;
+            asmCamera.lookAt(0, lookYAsm, 0);
         }
         asmRenderer.render(asmScene, asmCamera);
     }
@@ -1076,8 +1193,13 @@ let animPrevFrameMs = performance.now();
             const ud = consWallRoot.userData;
             const deltaBefore =
                 ud.consIdleStartY != null ? consWallRoot.rotation.y - ud.consIdleStartY : 0;
+            /** Пока летят клипсы (GSAP), крутим как в «медленном» 135°-сегменте — иначе боковые ловят fast-фазу без этого «микроторможения». */
+            const consClipFlyInActive =
+                consBackClipTL != null || consLeftClipTL != null || consRightClipTL != null;
             let rotSpeed;
-            if (ud.consRotFastAfterBack) {
+            if (consClipFlyInActive) {
+                rotSpeed = CONS_WALL_ROT_NORMAL;
+            } else if (ud.consRotFastAfterBack) {
                 rotSpeed = CONS_WALL_ROT_FAST;
             } else {
                 const segIndex = Math.max(0, Math.floor(deltaBefore / CONS_WALL_SEGMENT_RAD));
@@ -1148,7 +1270,9 @@ document.querySelectorAll('#colorPicker .swatch').forEach((sw) => {
         sw.classList.add('active');
 
         const hex = sw.dataset.color;
-        const target = new THREE.Color(hex);
+        const h = hex?.startsWith('#') ? parseInt(hex.slice(1), 16) : parseInt(hex || '0', 16);
+        if (!Number.isFinite(h)) return;
+        const target = new THREE.Color().setHex(h, THREE.SRGBColorSpace);
         const label = document.getElementById('colorLabel');
         if (label) label.textContent = colorNames[hex] || '';
 
@@ -1187,6 +1311,7 @@ gsap.utils.toArray('[data-anim]').forEach(el => {
 // (см. ASSEMBLY_MIXED_CUBE): у каждого файла те же 6 граней, выбирается меш по оси относительно центра куба.
 // =============================================
 const asmCanvas = document.getElementById('assemblyCanvas');
+/** Совпадает с блоком канваса: границы скролла/центра полосы и размер WebGL = видимый прямоугольник куба */
 const asmStage = document.getElementById('assemblyStage');
 const asmFallback = document.getElementById('assemblyFallback');
 
@@ -1204,15 +1329,15 @@ const ASSEMBLY_SHOW_MIXED_FACET_COLORS = true;
 
 /**
  * Цвет грани по доминирующей оси центра фасета относительно центра куба.
- * Пример смысла: лево/право белые, перед/зад серые, верх бежевый (Void), низ зелёный (Zen).
+ * ±x Bion белый; +y void беж как свотч Beige в hero; ±z Zen grey; −y тёмно-зелёный.
  */
 const ASSEMBLY_SLOT_COLORS = {
-    '-x': 0xf4f4f4,
-    '+x': 0xf4f4f4,
-    '+z': 0x9a9c9a,
-    '-z': 0x9a9c9a,
-    '+y': 0xe1b589,
-    '-y': 0x0a6f3c,
+    '-x': PALETTE_FLORA_VOID_WHITE,
+    '+x': PALETTE_FLORA_VOID_WHITE,
+    '+z': PALETTE_ZEN_FACE_GREY,
+    '-z': PALETTE_ZEN_FACE_GREY,
+    '+y': PALETTE_BEIGE_ASSEMBLY_VOID,
+    '-y': 0x2a6b45,
 };
 
 /**
@@ -1228,12 +1353,12 @@ const ASSEMBLY_MIXED_CUBE = {
     },
     /** Какой куб даёт грань на слоте (`source` — ключ из `sources`). */
     slots: [
-        { key: '-x', source: 'bion', color: 0xf4f4f4 },
-        { key: '+x', source: 'bion', color: 0xf4f4f4 },
-        { key: '-z', source: 'zen', color: 0x9a9c9a },
-        { key: '+z', source: 'zen', color: 0x9a9c9a },
-        { key: '+y', source: 'void', color: 0xe1b589 },
-        { key: '-y', source: 'zen', color: 0x0a6f3c },
+        { key: '-x', source: 'bion', color: PALETTE_FLORA_VOID_WHITE },
+        { key: '+x', source: 'bion', color: PALETTE_FLORA_VOID_WHITE },
+        { key: '-z', source: 'zen', color: PALETTE_ZEN_FACE_GREY },
+        { key: '+z', source: 'zen', color: PALETTE_ZEN_FACE_GREY },
+        { key: '+y', source: 'void', color: PALETTE_BEIGE_ASSEMBLY_VOID },
+        { key: '-y', source: 'zen', color: 0x2a6b45 },
     ],
 };
 
@@ -1281,7 +1406,7 @@ function applyAssemblySlotColors(meshes, cubikCenterW) {
         const hex = ASSEMBLY_SLOT_COLORS[key];
         const m = mesh.material;
         if (hex == null || !m?.color) return;
-        m.color.setHex(hex);
+        m.color.setHex(hex, THREE.SRGBColorSpace);
     });
 }
 
@@ -1339,17 +1464,58 @@ function assemblyBuildRefByKey(refMeshes, cubikCenterW) {
     return refByKey;
 }
 
+function assemblyStripGeometryVertexColors(geometry) {
+    if (!geometry?.isBufferGeometry) return;
+    if (geometry.getAttribute('color')) geometry.deleteAttribute('color');
+}
+
+/**
+ * Верхняя грань (void.glb): тот же беж, что свотч Beige в hero; env выключен, чтобы не уводило в серо-зелёный.
+ */
+function assemblyApplyVoidFrameMaterial(mesh) {
+    const old = mesh.material;
+    if (!old) return;
+    const color = new THREE.Color().setHex(PALETTE_BEIGE_ASSEMBLY_VOID, THREE.SRGBColorSpace);
+    if (typeof old.dispose === 'function') old.dispose();
+    mesh.material = new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.6,
+        metalness: 0.05,
+        envMapIntensity: 0,
+        side: THREE.DoubleSide,
+    });
+}
+
+/** Все меши с нормалью грани +Y (верх куба) — единый материал рамки Void после любого пути сборки. */
+function assemblyApplyVoidMaterialToPlusYMeshes(root, cubikCenterW) {
+    if (!root || !cubikCenterW || !ASSEMBLY_SHOW_MIXED_FACET_COLORS) return;
+    root.updateMatrixWorld(true);
+    root.traverse((c) => {
+        if (!(c.isMesh || c.isSkinnedMesh) || !c.material) return;
+        c.updateMatrixWorld(true);
+        const fb = new THREE.Box3().setFromObject(c);
+        const ctr = fb.getCenter(new THREE.Vector3());
+        const key = assemblyDominantFaceKey(ctr.clone().sub(cubikCenterW));
+        if (key !== '+y') return;
+        assemblyApplyVoidFrameMaterial(c);
+    });
+}
+
 /** Клон грани с эталона bion (та же геометрия/трансформ), другой цвет. */
 function assemblyCloneRefFacet(refMesh, baseMaterial, colorHex) {
     const mat = baseMaterial.clone();
-    mat.color.setHex(colorHex);
+    mat.color.setHex(colorHex, THREE.SRGBColorSpace);
+    mat.vertexColors = false;
     if (refMesh.isSkinnedMesh) {
         const c = refMesh.clone(true);
         c.material = mat;
+        if (c.geometry) assemblyStripGeometryVertexColors(c.geometry);
         c.frustumCulled = false;
         return c;
     }
-    const mesh = new THREE.Mesh(refMesh.geometry.clone(), mat);
+    const geom = refMesh.geometry.clone();
+    assemblyStripGeometryVertexColors(geom);
+    const mesh = new THREE.Mesh(geom, mat);
     mesh.position.copy(refMesh.position);
     mesh.quaternion.copy(refMesh.quaternion);
     mesh.scale.copy(refMesh.scale);
@@ -1703,10 +1869,12 @@ function assemblyMeshFromOtherCubik(sourceMesh, refMesh, baseMaterial, colorHex,
         console.warn(`[MeshFromCubik ${slotKey || '?'}] bad ratio → cloning refMesh as fallback`);
         return assemblyCloneRefFacet(refMesh, baseMaterial, colorHex);
     }
+    assemblyStripGeometryVertexColors(g);
     g.computeVertexNormals();
     g.computeBoundingSphere();
     const mat = baseMaterial.clone();
-    mat.color.setHex(colorHex);
+    mat.color.setHex(colorHex, THREE.SRGBColorSpace);
+    mat.vertexColors = false;
     const mesh = new THREE.Mesh(g, mat);
     mesh.position.copy(refMesh.position);
     mesh.quaternion.copy(refMesh.quaternion);
@@ -1825,6 +1993,61 @@ function applyExplodedPositions(meshes) {
     });
 }
 
+/** GLB часто содержит Line/LineSegments (каркас) — traverse только на Mesh их не трогает, остаются «тонкие линии». */
+function assemblySanitizeDrawables(root) {
+    if (!root) return;
+    root.traverse((c) => {
+        if (c.isLine || c.isLineSegments || c.isLineLoop || c.isPoints) {
+            c.visible = false;
+            return;
+        }
+        const mat = c.material;
+        if (!mat) return;
+        const list = Array.isArray(mat) ? mat : [mat];
+        for (const m of list) {
+            if (m && m.wireframe) m.wireframe = false;
+        }
+    });
+}
+
+function assemblyApplyShadowFlags(root) {
+    if (!root) return;
+    root.traverse((c) => {
+        if (c.isMesh || c.isSkinnedMesh) {
+            c.castShadow = false;
+            c.receiveShadow = false;
+        }
+    });
+}
+
+/** Одна мягкая «контактная» тень на полу — без карт теней от граней */
+function createAssemblyFloorBlobTexture() {
+    const s = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = s;
+    canvas.height = s;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+        const t = new THREE.CanvasTexture(canvas);
+        t.colorSpace = THREE.SRGBColorSpace;
+        return t;
+    }
+    const cx = s * 0.5;
+    const r = s * 0.5;
+    const g = ctx.createRadialGradient(cx, cx, 0, cx, cx, r);
+    g.addColorStop(0, 'rgba(18, 20, 24, 0.58)');
+    g.addColorStop(0.35, 'rgba(22, 24, 28, 0.28)');
+    g.addColorStop(0.65, 'rgba(26, 28, 32, 0.1)');
+    g.addColorStop(1, 'rgba(32, 34, 38, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, s, s);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    return tex;
+}
+
 function buildAssemblyMacroPlan(meshes, modelRoot) {
     if (!meshes?.length) return null;
     modelRoot.updateMatrixWorld(true);
@@ -1915,62 +2138,6 @@ function buildAssemblyMacroPlan(meshes, modelRoot) {
     };
 }
 
-/**
- * Кадр макро: зона стыка + уже собранные фасеты.
- * lookAt всегда на центре собранного cubik (не на центре bbox пары граней) — иначе при разлёте
- * точка взгляда «ездит» и модель визуально уходит от центра белого блока.
- */
-function computeAssemblyMacroCamera(stat, mover, preLocal, outwardWorld, extraBoundsMeshes = [], cubikCenterWorld) {
-    /** Запас по полю зрения — края граней и защёлки остаются в кадре. */
-    const padding = THREE.MathUtils.lerp(1.32, 1.17, getAssemblyViewportAdaptT());
-    const lookAt = cubikCenterWorld ? cubikCenterWorld.clone() : new THREE.Vector3(0, 0, 0);
-    const s0 = stat.position.clone();
-    const m0 = mover.position.clone();
-
-    const box = new THREE.Box3().makeEmpty();
-    const unionPose = (sp, mp) => {
-        stat.position.copy(sp);
-        mover.position.copy(mp);
-        if (asmModelRoot) asmModelRoot.updateMatrixWorld(true);
-        const b = new THREE.Box3().makeEmpty();
-        b.expandByObject(stat);
-        b.expandByObject(mover);
-        box.union(b);
-    };
-
-    unionPose(stat.userData.assembledPos, preLocal);
-    unionPose(stat.userData.assembledPos, mover.userData.assembledPos);
-
-    stat.position.copy(s0);
-    mover.position.copy(m0);
-    if (asmModelRoot) asmModelRoot.updateMatrixWorld(true);
-
-    for (const ex of extraBoundsMeshes) {
-        if (ex) box.expandByObject(ex);
-    }
-
-    const sphere = box.getBoundingSphere(new THREE.Sphere());
-    const offsetFromCubik = sphere.center.distanceTo(lookAt);
-    const r = Math.max((sphere.radius + offsetFromCubik) * padding, 0.06);
-
-    const vHalf = THREE.MathUtils.degToRad(asmCamera.fov * 0.5);
-    const aspect = Math.max(asmCamera.aspect, 0.001);
-    const distV = r / Math.tan(vHalf);
-    const distH = r / (Math.tan(vHalf) * aspect);
-    let dist = Math.max(distV, distH, 0.42);
-
-    const dir = outwardWorld.clone();
-    if (dir.lengthSq() < 1e-12) dir.set(0.35, 0.18, 1);
-    dir.normalize();
-
-    const camPos = lookAt.clone().addScaledVector(dir, dist);
-    camPos.y += r * 0.05;
-
-    const fitNear = Math.max(0.004, dist * 0.008);
-    const fitFar = Math.max(160, dist * 6);
-    return { camPos, lookAt, fitNear, fitFar };
-}
-
 function computePreSnapLocal(mesh, outwardW, gap) {
     const assembled = mesh.userData.assembledPos;
     mesh.position.copy(assembled);
@@ -2016,6 +2183,8 @@ function resetAssemblyToExploded(meshes) {
         asmBuildTL = null;
     }
     asmAssemblyComplete = false;
+    if (asmShadowCatcher) asmShadowCatcher.visible = false;
+    if (asmModelRoot) asmModelRoot.rotation.y = 0;
     if (!meshes?.length) return;
     applyExplodedPositions(meshes);
     meshes.forEach((mesh) => {
@@ -2030,6 +2199,7 @@ function playAssemblyBuild(meshes) {
     if (!meshes?.length) return;
     cancelAssemblyScrollPlayRaf();
     if (asmBuildTL) asmBuildTL.kill();
+    if (asmModelRoot) asmModelRoot.rotation.y = 0;
     applyExplodedPositions(meshes);
     meshes.forEach((m) => {
         m.visible = false;
@@ -2037,6 +2207,7 @@ function playAssemblyBuild(meshes) {
         if (mat && mat.emissiveIntensity !== undefined) mat.emissiveIntensity = 0;
     });
     asmAssemblyComplete = false;
+    if (asmShadowCatcher) asmShadowCatcher.visible = false;
     updateAssemblyCameraFit();
 
     const plan = assemblyMacroPlan;
@@ -2054,12 +2225,14 @@ function playAssemblyBuild(meshes) {
         });
         asmAssemblyComplete = true;
         asmBuildTL = null;
+        updateAssemblyShadowCatcher();
     };
 
     if (!useSequential) {
         if (steps?.length && !assemblySequentialStepsCoverAllMeshes(steps, meshes)) {
             console.warn('[Assembly] пошаговый план не охватывает все 6 граней — простая анимация сбора');
         }
+        applyAssemblyCloseUpCamera();
         const S = ASM_BUILD_TIME_SCALE;
         const perFace = 1.12 * S;
         asmBuildTL = gsap.timeline({ onComplete: finishBuild });
@@ -2077,7 +2250,7 @@ function playAssemblyBuild(meshes) {
                     y: p.y,
                     z: p.z,
                     duration: perFace * 0.92,
-                    ease: 'power2.inOut',
+                    ease: 'power1.inOut',
                 },
                 t0
             );
@@ -2086,49 +2259,13 @@ function playAssemblyBuild(meshes) {
     }
 
     const S = ASM_BUILD_TIME_SCALE;
-    const gap = Math.max(0.055, plan.half * 0.1);
+    /** Короткий ход «вдоль нормали» — стык грань-к-грани без глубокого вылета камеры вместе с деталью. */
+    const gap = Math.max(0.032, plan.half * 0.055);
     const MACRO_APPROACH = 0.52 * S;
     const MACRO_SNAP = 0.45 * S;
-    const PLANE_BLEND = 0.18 * S;
-    /** Финальный отъезд короче: масштаб уже близок к общему кадру. */
-    const FINAL_PULL = 0.45 * S;
 
+    applyAssemblyCloseUpCamera();
     asmBuildTL = gsap.timeline({ onComplete: finishBuild });
-
-    function tweenCameraClipPlanes(nearT, farT, tPos) {
-        const o = { n: asmCamera.near, f: asmCamera.far };
-        asmBuildTL.to(
-            o,
-            {
-                n: nearT,
-                f: farT,
-                duration: PLANE_BLEND,
-                ease: 'power1.out',
-                onUpdate: () => {
-                    asmCamera.near = o.n;
-                    asmCamera.far = o.f;
-                    asmCamera.updateProjectionMatrix();
-                },
-            },
-            tPos
-        );
-    }
-
-    /** Длительность = фаза подлёта, чтобы lookAt не «замирал» раньше геометрии. */
-    function addCameraMacroTween(tStart, macroCam, duration) {
-        asmBuildTL.to(
-            asmCamera.position,
-            {
-                x: macroCam.camPos.x,
-                y: macroCam.camPos.y,
-                z: macroCam.camPos.z,
-                duration,
-                ease: 'power2.inOut',
-                onUpdate: () => asmCamera.lookAt(macroCam.lookAt),
-            },
-            tStart
-        );
-    }
 
     function extrasBeforeStep(stepIndex) {
         const done = new Set();
@@ -2158,7 +2295,6 @@ function playAssemblyBuild(meshes) {
         const mover = dualFlip ? fA.mesh : fB.mesh;
         const { outward } = plan.focusForPair(fA, fB);
         const preLocal = computePreSnapLocal(mover, outward, gap);
-        const macroCam = computeAssemblyMacroCamera(stat, mover, preLocal, outward, extras, plan.cubikCenterW);
 
         asmBuildTL.call(
             () => {
@@ -2178,7 +2314,6 @@ function playAssemblyBuild(meshes) {
             tStart
         );
 
-        tweenCameraClipPlanes(macroCam.fitNear, macroCam.fitFar, tStart);
         const approachT = MACRO_APPROACH;
 
         asmBuildTL.to(
@@ -2188,16 +2323,15 @@ function playAssemblyBuild(meshes) {
                 y: stat.userData.assembledPos.y,
                 z: stat.userData.assembledPos.z,
                 duration: MACRO_APPROACH,
-                ease: 'power2.inOut',
+                ease: 'power1.inOut',
             },
             tStart
         );
         asmBuildTL.to(
             mover.position,
-            { x: preLocal.x, y: preLocal.y, z: preLocal.z, duration: MACRO_APPROACH, ease: 'power2.inOut' },
+            { x: preLocal.x, y: preLocal.y, z: preLocal.z, duration: MACRO_APPROACH, ease: 'power1.inOut' },
             tStart
         );
-        addCameraMacroTween(tStart, macroCam, approachT);
 
         const snapT = tStart + approachT;
         asmBuildTL.to(
@@ -2207,7 +2341,7 @@ function playAssemblyBuild(meshes) {
                 y: mover.userData.assembledPos.y,
                 z: mover.userData.assembledPos.z,
                 duration: MACRO_SNAP,
-                ease: 'power2.inOut',
+                ease: 'power1.inOut',
                 onComplete: () => {
                     pulseAssemblySnap(mover);
                     pulseAssemblySnap(stat);
@@ -2224,7 +2358,6 @@ function playAssemblyBuild(meshes) {
         const mover = step.moverFacet.mesh;
         const { outward } = plan.focusForPair(step.statFacet, step.moverFacet);
         const preLocal = computePreSnapLocal(mover, outward, gap);
-        const macroCam = computeAssemblyMacroCamera(stat, mover, preLocal, outward, extras, plan.cubikCenterW);
 
         asmBuildTL.call(
             () => {
@@ -2244,15 +2377,13 @@ function playAssemblyBuild(meshes) {
             tStart
         );
 
-        tweenCameraClipPlanes(macroCam.fitNear, macroCam.fitFar, tStart);
         const approachT = MACRO_APPROACH;
 
         asmBuildTL.to(
             mover.position,
-            { x: preLocal.x, y: preLocal.y, z: preLocal.z, duration: MACRO_APPROACH, ease: 'power2.inOut' },
+            { x: preLocal.x, y: preLocal.y, z: preLocal.z, duration: MACRO_APPROACH, ease: 'power1.inOut' },
             tStart
         );
-        addCameraMacroTween(tStart, macroCam, approachT);
 
         const snapT = tStart + approachT;
         asmBuildTL.to(
@@ -2262,7 +2393,7 @@ function playAssemblyBuild(meshes) {
                 y: mover.userData.assembledPos.y,
                 z: mover.userData.assembledPos.z,
                 duration: MACRO_SNAP,
-                ease: 'power2.inOut',
+                ease: 'power1.inOut',
                 onComplete: () => {
                     pulseAssemblySnap(mover);
                     pulseAssemblySnap(stat);
@@ -2292,27 +2423,6 @@ function playAssemblyBuild(meshes) {
         null,
         t
     );
-
-    const wideFit = getAssemblyCameraFitVectors();
-    const widePos = wideFit ? wideFit.pos : asmCamera.position.clone();
-    const wideLook = wideFit ? wideFit.look : new THREE.Vector3(0, 0, 0);
-
-    if (wideFit) {
-        tweenCameraClipPlanes(wideFit.near, wideFit.far, t);
-    }
-
-    asmBuildTL.to(
-        asmCamera.position,
-        {
-            x: widePos.x,
-            y: widePos.y,
-            z: widePos.z,
-            duration: FINAL_PULL,
-            ease: 'power2.inOut',
-            onUpdate: () => asmCamera.lookAt(wideLook),
-        },
-        t
-    );
 }
 
 function initAssemblyViewer() {
@@ -2329,35 +2439,69 @@ function initAssemblyViewer() {
         antialias: true,
         alpha: false,
         logarithmicDepthBuffer: true,
+        powerPreference: 'high-performance',
     });
     function applyAsmPixelRatio() {
         if (!asmRenderer) return;
-        const cap = window.matchMedia('(max-width: 768px)').matches ? 1.25 : 2;
+        const narrow = window.matchMedia('(max-width: 768px)').matches;
+        const cap = narrow ? 1.5 : 2.5;
         asmRenderer.setPixelRatio(Math.min(window.devicePixelRatio, cap));
     }
     applyAsmPixelRatio();
     asmRenderer.setClearColor(0xffffff, 1);
+    asmRenderer.outputColorSpace = THREE.SRGBColorSpace;
+    /** Как у hero: иначе тот же hex (#E1B589) визуально расходится из‑за другого tone mapping */
     asmRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-    asmRenderer.toneMappingExposure = 1.12;
+    asmRenderer.toneMappingExposure = 1.2;
+    asmRenderer.shadowMap.enabled = false;
 
-    asmScene.add(new THREE.AmbientLight(0xffffff, 0.82));
-    const d1 = new THREE.DirectionalLight(0xffffff, 1.05);
-    d1.position.set(5, 9, 7);
-    asmScene.add(d1);
-    const d2 = new THREE.DirectionalLight(0xffffff, 0.32);
-    d2.position.set(-4, 3, -4);
-    asmScene.add(d2);
+    const asmPmrem = new THREE.PMREMGenerator(asmRenderer);
+    const asmRoomEnv = new RoomEnvironment();
+    const asmEnvRt = asmPmrem.fromScene(asmRoomEnv, 0.04);
+    asmScene.environment = asmEnvRt.texture;
+    asmRoomEnv.dispose();
+    asmPmrem.dispose();
+
+    /** Ключевой свет — без castShadow: тень только мягким кругом под кубом */
+    const asmKey = new THREE.DirectionalLight(0xffffff, 1.05);
+    asmKey.position.set(4.5, 9.5, 5.2);
+    asmKey.castShadow = false;
+    asmScene.add(asmKey);
+
+    asmScene.add(new THREE.AmbientLight(0xffffff, 0.2));
+    asmScene.add(new THREE.HemisphereLight(0xffffff, 0xe8e6e3, 0.5));
+    const asmFill = new THREE.DirectionalLight(0xfff8f2, 0.38);
+    asmFill.position.set(-5.5, 6, 2);
+    asmScene.add(asmFill);
+    const asmRim = new THREE.DirectionalLight(0xf0f2f5, 0.22);
+    asmRim.position.set(0.5, 4, -7.5);
+    asmScene.add(asmRim);
 
     asmModelRoot = new THREE.Group();
     asmModelRoot.rotation.order = 'YXZ';
     asmScene.add(asmModelRoot);
 
+    const blobTex = createAssemblyFloorBlobTexture();
+    const catcherGeo = new THREE.CircleGeometry(1, 48);
+    const catcherMat = new THREE.MeshBasicMaterial({
+        map: blobTex,
+        transparent: true,
+        depthWrite: false,
+        toneMapped: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -0.5,
+        polygonOffsetUnits: -0.5,
+    });
+    asmShadowCatcher = new THREE.Mesh(catcherGeo, catcherMat);
+    asmShadowCatcher.rotation.x = -Math.PI / 2;
+    asmShadowCatcher.frustumCulled = false;
+    asmScene.add(asmShadowCatcher);
+
     const facetMat = new THREE.MeshStandardMaterial({
-        color: 0x7d7f7d,
-        roughness: 0.58,
-        metalness: 0.04,
-        emissive: new THREE.Color(0x2f6f4e),
-        emissiveIntensity: 0,
+        color: new THREE.Color().setHex(0x8a8c8a, THREE.SRGBColorSpace),
+        roughness: 0.42,
+        metalness: 0.06,
+        envMapIntensity: 0.44,
     });
 
     function resizeAsm() {
@@ -2373,6 +2517,7 @@ function initAssemblyViewer() {
             updateAssemblyCameraFit();
             if (assemblyMeshesRef?.length) {
                 refreshAssemblyExplodedPositions(assemblyMeshesRef);
+                updateAssemblyShadowCatcher();
             }
         }
     }
@@ -2463,6 +2608,13 @@ function initAssemblyViewer() {
                     applyAssemblySlotColors(meshes, cubikC);
                 }
 
+                asmModelRoot.updateMatrixWorld(true);
+                cubikC = new THREE.Box3().setFromObject(asmModelRoot).getCenter(new THREE.Vector3());
+                assemblyApplyVoidMaterialToPlusYMeshes(asmModelRoot, cubikC);
+
+                assemblySanitizeDrawables(asmModelRoot);
+                assemblyApplyShadowFlags(asmModelRoot);
+
                 meshes.forEach((m) => {
                     m.userData.assembledPos = m.position.clone();
                 });
@@ -2520,7 +2672,7 @@ function initAssemblyViewer() {
                     else if (facing < -0.15) mult = 1.68;
 
                     mesh.userData.asmExplodeDir = dir.clone();
-                    mesh.userData.asmExplodeLen = expandW * mult;
+                    mesh.userData.asmExplodeLen = expandW * mult * ASM_ASSEMBLY_EXPLODE_LEN_SCALE;
 
                     const explodedWorldOrigin = assembledWorld
                         .clone()
@@ -2539,6 +2691,7 @@ function initAssemblyViewer() {
                 });
 
                 updateAssemblyCameraFit();
+                updateAssemblyShadowCatcher();
                 assemblyMacroPlan = buildAssemblyMacroPlan(meshes, asmModelRoot);
 
                 assemblyMeshesRef = meshes;
@@ -2862,7 +3015,7 @@ function initConstructionWall() {
     consRenderer.outputColorSpace = THREE.SRGBColorSpace;
     /** ACES сильно смещает оттенки относительно hex из палитры; Linear ближе к «как в макете» */
     consRenderer.toneMapping = THREE.LinearToneMapping;
-    consRenderer.toneMappingExposure = 1.0;
+    consRenderer.toneMappingExposure = 1.1;
     consRenderer.shadowMap.enabled = true;
     consRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -3045,7 +3198,7 @@ function initConstructionWall() {
     const STAGGER_IN_ROW = 0.06;
     const ROW_GAP = 0.11;
     const PAUSE_BEFORE_CLIPS = 0.11;
-    /** Палитра: void — белый #f4f4f4; bion — серый #7d7f7d; zen / клипсы — см. ниже */
+    /** Стенка: упрощённые цвета сетки (не 1:1 с отделками каталога — там см. PALETTE_* в hero/assembly). */
     const CUBIK_VOID_WHITE = 0xf4f4f4;
     const CUBIK_ZEN_BEIGE = 0xe1b589;
     const CUBIK_GRAY = 0x7d7f7d;

@@ -953,25 +953,39 @@ section[id] {
 }
 
 .assembly-stage {
-    width: 100%;
-    max-width: min(100%, 960px);
-    height: min(80vh, 760px);
-    min-height: 320px;
-    margin: 0 auto;
     position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: min(100%, 520px);
+    margin: 0 auto;
+    padding: clamp(14px, 3vw, 26px);
     background: #fff;
     border-radius: 16px;
     overflow: hidden;
-    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+.assembly-canvas-wrap {
+    position: relative;
+    width: 100%;
+    margin: 0 auto;
+    flex-shrink: 0;
+    aspect-ratio: 1 / 1.05;
+    max-height: min(52vh, 500px);
 }
 .assembly-stage--interactive {
     cursor: pointer;
     outline: none;
 }
 .assembly-stage--interactive:focus-visible {
-    box-shadow: 0 0 0 3px rgba(10, 111, 60, 0.35);
+    outline: 3px solid rgba(10, 111, 60, 0.45);
+    outline-offset: 2px;
 }
 #assemblyCanvas {
+    position: absolute;
+    inset: 0;
     display: block;
     width: 100%;
     height: 100%;
@@ -1049,7 +1063,8 @@ section[id] {
     pointer-events: none;
 }
 .construction-stage.is-ready .construction-loader,
-.assembly-stage.is-ready .assembly-loader {
+/* is-ready на #assemblyStage (обёртка канваса), не на внешней .assembly-stage */
+.assembly-stage:has(#assemblyStage.is-ready) .assembly-loader {
     display: none;
 }
 .construction-stage {
@@ -1311,9 +1326,8 @@ section[id] {
         height: min(58vh, 440px);
         min-height: 220px;
     }
-    .assembly-stage {
-        height: min(70vh, 560px);
-        min-height: 280px;
+    .assembly-canvas-wrap {
+        max-height: min(48vh, 440px);
     }
     .footer-inner { flex-direction: column; text-align: center; }
 }
@@ -1346,8 +1360,8 @@ section[id] {
     .modular-hero-inner {
         row-gap: clamp(12px, 3vw, 18px);
     }
-    .assembly-stage {
-        height: min(68vh, 520px);
-        min-height: 260px;
+    .assembly-canvas-wrap {
+        aspect-ratio: 1 / 1.08;
+        max-height: min(46vh, 400px);
     }
 }
