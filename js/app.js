@@ -8,7 +8,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 gsap.registerPlugin(ScrollTrigger);
-console.log('%c[app.js v106] LOADED', 'color:lime;font-weight:bold;font-size:14px');
+console.log('%c[app.js v107] LOADED', 'color:lime;font-weight:bold;font-size:14px');
 
 /** Пути к моделям от каталога модуля — работает при деплое в подпапку (GitHub Pages и т.п.). */
 const ASSETS_BASE = new URL('../assets/', import.meta.url).href;
@@ -90,6 +90,24 @@ navLinks?.querySelectorAll('a').forEach(a => {
         navLinks.classList.remove('open');
     });
 });
+
+(function initHeadBrandFilm() {
+    const v = document.querySelector('#headVideo .head-video-media');
+    if (!v) return;
+    v.muted = true;
+    v.defaultMuted = true;
+    v.setAttribute('muted', '');
+    if ('playsInline' in v) v.playsInline = true;
+    v.setAttribute('playsinline', '');
+    v.setAttribute('webkit-playsinline', '');
+    const tryPlay = () => v.play().catch(() => {});
+    if (v.readyState >= 2) tryPlay();
+    else {
+        v.addEventListener('canplay', tryPlay, { once: true });
+        v.addEventListener('loadeddata', tryPlay, { once: true });
+    }
+    document.addEventListener('touchstart', tryPlay, { once: true, passive: true });
+})();
 
 // =============================================
 // Hero — crossfade + карточки категорий (автосмена всех фото каждые 5 с)
@@ -433,6 +451,39 @@ let heroRenderer = null;
 let heroRotationY = 0;
 let heroCompositionRoot = null;
 
+function getActiveHeroColorSwatchHex() {
+    const el = document.querySelector('#colorPicker .swatch.active');
+    const hex = el?.dataset?.color;
+    return typeof hex === 'string' && hex.length ? hex : '#F4F4F4';
+}
+
+function applyHeroPaletteColorToRoot(root, hexCss, { animate = false } = {}) {
+    if (!root || !hexCss) return;
+    const h = hexCss.startsWith('#') ? parseInt(hexCss.slice(1), 16) : parseInt(hexCss, 16);
+    if (!Number.isFinite(h)) return;
+    const target = new THREE.Color().setHex(h, THREE.SRGBColorSpace);
+    root.traverse((child) => {
+        if (!child.isMesh || !child.material?.color) return;
+        if (animate) {
+            gsap.to(child.material.color, {
+                r: target.r,
+                g: target.g,
+                b: target.b,
+                duration: 0.45,
+                ease: 'power2.inOut',
+                overwrite: 'auto',
+            });
+        } else {
+            child.material.color.copy(target);
+        }
+    });
+}
+
+/** Согласовать материалы hero с активным свотчем (модели Zen стартуют с серым «фасетным» базовым цветом). */
+function syncHeroSceneToActiveColorSwatch(options = {}) {
+    applyHeroPaletteColorToRoot(heroCompositionRoot, getActiveHeroColorSwatchHex(), options);
+}
+
 const HERO_ROT_SPEED = -0.0075;
 const objLoader = new OBJLoader();
 
@@ -535,6 +586,7 @@ function onHeroModelLoaded(index) {
         const g = loadedModels[index];
         heroTiltGroup.add(g);
         g.visible = index === heroFacetIndex;
+        syncHeroSceneToActiveColorSwatch({ animate: false });
     }
     updateHeroFacetTabAvailability();
 }
@@ -665,6 +717,7 @@ function layoutHeroSingleCubikMode() {
     if (active) {
         runHeroAssemblyEntrance([active]);
     }
+    syncHeroSceneToActiveColorSwatch({ animate: false });
 }
 
 /** Без анимации scale 0.22→1 — сразу полный масштаб, как после повторного клика по табу */
@@ -701,6 +754,8 @@ function setHeroFacetFocus(index) {
     });
 
     if (!next) return;
+
+    syncHeroSceneToActiveColorSwatch({ animate: false });
 
     next.position.set(0, 0, 0);
     if (heroFacetSwitchTween) {
@@ -1299,25 +1354,10 @@ document.querySelectorAll('#colorPicker .swatch').forEach((sw) => {
         const hex = sw.dataset.color;
         const h = hex?.startsWith('#') ? parseInt(hex.slice(1), 16) : parseInt(hex || '0', 16);
         if (!Number.isFinite(h)) return;
-        const target = new THREE.Color().setHex(h, THREE.SRGBColorSpace);
         const label = document.getElementById('colorLabel');
         if (label) label.textContent = colorNames[hex] || '';
 
-        const root = heroCompositionRoot;
-        if (root) {
-            root.traverse((child) => {
-                if (child.isMesh && child.material?.color) {
-                    gsap.to(child.material.color, {
-                        r: target.r,
-                        g: target.g,
-                        b: target.b,
-                        duration: 0.45,
-                        ease: 'power2.inOut',
-                        overwrite: 'auto',
-                    });
-                }
-            });
-        }
+        applyHeroPaletteColorToRoot(heroCompositionRoot, hex, { animate: true });
     });
 });
 
