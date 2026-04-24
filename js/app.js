@@ -1,5 +1,13 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import {
+    FAQ_ITEMS,
+    PRODUCTS,
+    GALLERY_ITEMS,
+    HOW_IT_WORKS,
+    SOCIAL_PROOF,
+    SUCCESS_STORY_VISUALS,
+} from './landing-data.js';
 
 THREE.ColorManagement.enabled = true;
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
@@ -83,30 +91,54 @@ const navLinks = document.querySelector('.nav-links');
 burger?.addEventListener('click', () => {
     burger.classList.toggle('open');
     navLinks.classList.toggle('open');
+    const open = navLinks.classList.contains('open');
+    burger.setAttribute('aria-expanded', open ? 'true' : 'false');
 });
 navLinks?.querySelectorAll('a').forEach(a => {
     a.addEventListener('click', () => {
         burger.classList.remove('open');
         navLinks.classList.remove('open');
+        burger?.setAttribute('aria-expanded', 'false');
     });
 });
 
 (function initHeadBrandFilm() {
-    const v = document.querySelector('#headVideo .head-video-media');
-    if (!v) return;
+    const section = document.getElementById('headVideo');
+    const v = section?.querySelector('.head-video-media');
+    if (!v || !section) return;
     v.muted = true;
     v.defaultMuted = true;
     v.setAttribute('muted', '');
     if ('playsInline' in v) v.playsInline = true;
     v.setAttribute('playsinline', '');
     v.setAttribute('webkit-playsinline', '');
+
     const tryPlay = () => v.play().catch(() => {});
-    if (v.readyState >= 2) tryPlay();
-    else {
-        v.addEventListener('canplay', tryPlay, { once: true });
-        v.addEventListener('loadeddata', tryPlay, { once: true });
-    }
-    document.addEventListener('touchstart', tryPlay, { once: true, passive: true });
+
+    let inView = false;
+    const io = new IntersectionObserver(
+        (entries) => {
+            entries.forEach((entry) => {
+                inView = entry.isIntersecting;
+                if (inView) {
+                    if (v.readyState >= 2) tryPlay();
+                    else {
+                        v.addEventListener(
+                            'canplay',
+                            () => {
+                                if (inView) tryPlay();
+                            },
+                            { once: true }
+                        );
+                    }
+                } else {
+                    v.pause();
+                }
+            });
+        },
+        { root: null, rootMargin: '0px 0px -8% 0px', threshold: 0.22 }
+    );
+    io.observe(section);
 })();
 
 // =============================================
@@ -114,7 +146,7 @@ navLinks?.querySelectorAll('a').forEach(a => {
 // =============================================
 const heroTL = gsap.timeline({ defaults: { ease: 'power3.out' } });
 heroTL
-    .to('.hero-title--hero', { opacity: 1, y: 0, duration: 0.55 })
+    .to('.hero-copy', { opacity: 1, y: 0, duration: 0.55 })
     .to('.hero-showcase', { opacity: 1, y: 0, duration: 0.52 }, '-=0.32');
 
 function bannerAssetUrl(folder, file) {
@@ -433,6 +465,15 @@ if (document.getElementById('material')) {
     items.forEach((item) => {
         if (item.querySelector('video[data-acc-video]')) accVideoIo?.observe(item);
     });
+
+    const initialOpen = root.querySelector('.modular-acc-item.is-open');
+    if (initialOpen) {
+        setPanelA11y(initialOpen, true);
+        if (accVideoIoShouldPlay) {
+            playVideo(initialOpen);
+        }
+        scheduleScrollTriggerRefresh();
+    }
 })();
 
 // =============================================
@@ -507,13 +548,37 @@ function cleanMeshGeometry(mesh, fixGeometry) {
 }
 
 if (canvas && canvasWrap) {
+try {
+    heroRenderer = createCompatWebGLRenderer({ canvas });
+} catch {
+    heroRenderer = null;
+}
+const heroGlOk = Boolean(heroRenderer?.getContext?.());
+if (!heroGlOk) {
+    try {
+        heroRenderer?.dispose?.();
+    } catch {
+        /* ignore */
+    }
+    heroRenderer = null;
+    loaderEl?.classList.add('hidden');
+    canvas.classList.add('visually-hidden');
+    canvas.setAttribute('aria-hidden', 'true');
+    canvasWrap.classList.add('has-static-fallback');
+    if (!canvasWrap.querySelector('.hero-static-fallback')) {
+        const fig = document.createElement('figure');
+        fig.className = 'hero-static-fallback';
+        fig.innerHTML =
+            '<img src="assets/images/banner/Garden/2.jpeg" alt="Cubik modular system in a garden setting" width="1200" height="900" decoding="async" fetchpriority="high" />';
+        canvasWrap.insertBefore(fig, canvasWrap.firstChild);
+    }
+} else {
 heroScene = new THREE.Scene();
 heroScene.background = new THREE.Color(0xffffff);
 
 heroCamera = new THREE.PerspectiveCamera(32, 2.5, 0.1, 500);
 heroCamera.position.set(0, 1.2, 34);
 
-heroRenderer = createCompatWebGLRenderer({ canvas });
 function getHeroPixelRatioCap() {
     return window.matchMedia('(max-width: 900px)').matches ? 1.25 : 2;
 }
@@ -727,7 +792,7 @@ function runHeroAssemblyEntrance(groups) {
         g.scale.setScalar(1);
     });
     const active = groups[0];
-    if (active) fitHeroCamera([active], { tight: true });
+    if (active) fitHeroCamera([active], { tight: true, frameLoosen: currentHeroFrameLoosen() });
 }
 
 let heroFacetIndex = HERO_DEFAULT_FACET_INDEX;
@@ -765,7 +830,7 @@ function setHeroFacetFocus(index) {
 
     if (!switchedModel) {
         next.scale.setScalar(1);
-        fitHeroCamera([next], { tight: true });
+        fitHeroCamera([next], { tight: true, frameLoosen: currentHeroFrameLoosen() });
         return;
     }
 
@@ -774,7 +839,7 @@ function setHeroFacetFocus(index) {
      * fit только до/после: во время scale камера не двигается — куб реально мельчает и отскакивает.
      */
     next.scale.setScalar(1);
-    fitHeroCamera([next], { tight: true });
+    fitHeroCamera([next], { tight: true, frameLoosen: currentHeroFrameLoosen() });
 
     const pulse = { s: 1 };
     const dipS = 0.86;
@@ -783,7 +848,7 @@ function setHeroFacetFocus(index) {
         onComplete: () => {
             heroFacetSwitchTween = null;
             next.scale.setScalar(1);
-            fitHeroCamera([next], { tight: true });
+            fitHeroCamera([next], { tight: true, frameLoosen: currentHeroFrameLoosen() });
         },
     });
     heroFacetSwitchTween.to(pulse, {
@@ -814,13 +879,27 @@ function updateHeroFacetTabAvailability() {
 
 function setupHeroFacetPicker() {
     const tabs = document.querySelectorAll('#heroFacetPicker .facet-tab');
+    const picker = document.getElementById('heroFacetPicker');
     if (!tabs.length) return;
+    function refitHeroForFacetHover() {
+        const active = loadedModels[heroFacetIndex];
+        if (!active) return;
+        fitHeroCamera([active], { tight: true, frameLoosen: currentHeroFrameLoosen() });
+    }
     tabs.forEach((btn) => {
         btn.addEventListener('click', () => {
             const i = Number.parseInt(btn.dataset.facetIndex, 10);
             if (!Number.isFinite(i) || !loadedModels[i]) return;
             setHeroFacetFocus(i);
         });
+    });
+    picker?.addEventListener('mouseenter', () => {
+        picker.dataset.heroLoosen = '1';
+        refitHeroForFacetHover();
+    });
+    picker?.addEventListener('mouseleave', () => {
+        delete picker.dataset.heroLoosen;
+        refitHeroForFacetHover();
     });
     updateHeroFacetTabAvailability();
 }
@@ -836,11 +915,19 @@ function fitHeroCamera(groups, opts = {}) {
     const tight = opts.tight === true;
     const narrow =
         typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches;
+    const loosen =
+        typeof opts.frameLoosen === 'number' && opts.frameLoosen > 1 ? opts.frameLoosen : 1;
     /** Запас под вращение и наклон без обрезки в канвасе; на узких экранах — крупнее модель */
-    const padding = tight ? (narrow ? 1.16 : 1.32) : 1.18;
+    let padding = tight ? (narrow ? 1.16 : 1.32) : 1.18;
+    if (tight && loosen > 1) {
+        padding *= loosen;
+    }
     /** Доп. вертикальный запас: верх граней при tilt+Y-вращении не вылезает из canvas */
     const paddingV = tight ? padding * (narrow ? 1.06 : 1.12) : padding;
-    const minDist = tight ? (narrow ? 5.1 : 7.8) : 24;
+    let minDist = tight ? (narrow ? 5.1 : 7.8) : 24;
+    if (tight && loosen > 1) {
+        minDist *= Math.min(loosen, 1.2);
+    }
 
     const g0 = groups[0];
     const u = g0.userData?.heroFitSpan;
@@ -923,6 +1010,10 @@ function fitHeroCamera(groups, opts = {}) {
     heroCamera.updateProjectionMatrix();
 }
 
+function currentHeroFrameLoosen() {
+    return document.getElementById('heroFacetPicker')?.dataset.heroLoosen === '1' ? 1.24 : 1;
+}
+
 function loadHeroFallbackBox(index) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), sharedMaterial.clone());
     loadedModels[index] = buildHeroModelGroup(mesh, false, modelFiles[index].color);
@@ -930,6 +1021,22 @@ function loadHeroFallbackBox(index) {
 }
 
 loadHeroModelAt(HERO_DEFAULT_FACET_INDEX);
+window.setTimeout(() => {
+    if (heroLayoutInitialized) return;
+    loaderEl?.classList.add('hidden');
+    if (!canvasWrap?.classList.contains('has-static-fallback')) {
+        canvasWrap?.classList.add('has-static-fallback');
+        canvas?.classList.add('visually-hidden');
+        canvas?.setAttribute('aria-hidden', 'true');
+        if (!canvasWrap.querySelector('.hero-static-fallback')) {
+            const fig = document.createElement('figure');
+            fig.className = 'hero-static-fallback';
+            fig.innerHTML =
+                '<img src="assets/images/banner/Garden/2.jpeg" alt="Cubik modular system in a garden setting" width="1200" height="900" decoding="async" />';
+            canvasWrap.insertBefore(fig, canvasWrap.firstChild);
+        }
+    }
+}, 14000);
 
 function resizeHeroRenderer() {
     const w = canvasWrap.clientWidth;
@@ -941,12 +1048,13 @@ function resizeHeroRenderer() {
     heroCamera.updateProjectionMatrix();
     if (heroCompositionRoot) {
         const active = loadedModels[heroFacetIndex];
-        if (active) fitHeroCamera([active], { tight: true });
+        if (active) fitHeroCamera([active], { tight: true, frameLoosen: currentHeroFrameLoosen() });
     }
 }
 resizeHeroRenderer();
 window.addEventListener('resize', resizeHeroRenderer);
 
+}
 }
 
 let heroSectionInView = true;
@@ -1360,6 +1468,380 @@ document.querySelectorAll('#colorPicker .swatch').forEach((sw) => {
         applyHeroPaletteColorToRoot(heroCompositionRoot, hex, { animate: true });
     });
 });
+
+// =============================================
+// FAQ + products DOM (before scroll fade-in hooks)
+// =============================================
+(function mountFaqAccordion() {
+    const root = document.getElementById('faqAccordion');
+    if (!root) return;
+
+    root.innerHTML = '';
+    FAQ_ITEMS.forEach((item, i) => {
+        const itemEl = document.createElement('div');
+        itemEl.className = 'faq-item';
+        itemEl.dataset.faqItem = '';
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'faq-trigger';
+        btn.id = `faq-trigger-${i}`;
+        btn.setAttribute('aria-expanded', 'false');
+        btn.setAttribute('aria-controls', `faq-panel-${i}`);
+        const btnLabel = document.createElement('span');
+        btnLabel.className = 'faq-trigger-text';
+        btnLabel.textContent = item.q;
+        const btnIcon = document.createElement('span');
+        btnIcon.className = 'faq-trigger-icon';
+        btnIcon.setAttribute('aria-hidden', 'true');
+        btn.appendChild(btnLabel);
+        btn.appendChild(btnIcon);
+
+        const panel = document.createElement('div');
+        panel.className = 'faq-panel';
+        panel.id = `faq-panel-${i}`;
+        panel.setAttribute('role', 'region');
+        panel.setAttribute('aria-labelledby', `faq-trigger-${i}`);
+        panel.setAttribute('aria-hidden', 'true');
+        const inner = document.createElement('div');
+        inner.className = 'faq-panel-inner';
+        inner.textContent = item.a;
+        panel.appendChild(inner);
+
+        itemEl.appendChild(btn);
+        itemEl.appendChild(panel);
+        root.appendChild(itemEl);
+
+        btn.addEventListener('click', () => {
+            const open = !itemEl.classList.contains('is-open');
+            root.querySelectorAll('.faq-item.is-open').forEach((o) => {
+                o.classList.remove('is-open');
+                const t = o.querySelector('.faq-trigger');
+                const p = o.querySelector('.faq-panel');
+                t?.setAttribute('aria-expanded', 'false');
+                p?.setAttribute('aria-hidden', 'true');
+            });
+            if (open) {
+                itemEl.classList.add('is-open');
+                btn.setAttribute('aria-expanded', 'true');
+                panel.setAttribute('aria-hidden', 'false');
+            }
+        });
+    });
+})();
+
+/** Иконки в карточках отзывов (inline SVG, viewBox 0 0 24 24). */
+const SOCIAL_CARD_ICON_PATHS = {
+    bolt: 'M7 2v11h3v9l7-12h-4l4-8H7z',
+    heart: 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5c0 1.38.56 2.63 1.46 3.54L12 7.35l1.96-1.89C14.87 3.56 16.12 3 17.5 3 20.58 3 23 5.42 23 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z',
+    spark: 'M12 2l2.2 6.8H21l-5.5 4 2.1 6.5L12 15.9 6.4 19.3l2.1-6.5L3 8.8h6.8L12 2z',
+    grid: 'M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z',
+};
+
+function appendSocialCardIcon(wrap, iconKey) {
+    const d = SOCIAL_CARD_ICON_PATHS[iconKey] || SOCIAL_CARD_ICON_PATHS.bolt;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('width', '14');
+    svg.setAttribute('height', '14');
+    svg.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('fill', 'currentColor');
+    svg.appendChild(path);
+    wrap.appendChild(svg);
+}
+
+function fillGalleryMosaic(mosaicRoot) {
+    if (!mosaicRoot || !GALLERY_ITEMS.length) return;
+    mosaicRoot.replaceChildren();
+    GALLERY_ITEMS.forEach((g, i) => {
+        const cell = document.createElement('div');
+        cell.className = `gm-cell gm-cell--${i + 1}`;
+        const img = document.createElement('img');
+        img.src = g.src;
+        img.alt = g.alt;
+        img.loading = i < 2 ? 'eager' : 'lazy';
+        img.decoding = 'async';
+        cell.appendChild(img);
+        mosaicRoot.appendChild(cell);
+    });
+}
+
+(function mountGalleryHowSocial() {
+    fillGalleryMosaic(document.getElementById('galleryMosaic'));
+
+    const howRoot = document.getElementById('howGrid');
+    if (howRoot) {
+        howRoot.innerHTML = '';
+        HOW_IT_WORKS.forEach((h) => {
+            const div = document.createElement('div');
+            div.className = 'how-card';
+            div.dataset.anim = '';
+            const step = document.createElement('span');
+            step.className = 'how-step';
+            step.textContent = h.step;
+            const title = document.createElement('h3');
+            title.className = 'how-title';
+            title.textContent = h.title;
+            const body = document.createElement('p');
+            body.className = 'how-body';
+            body.textContent = h.body;
+            div.appendChild(step);
+            div.appendChild(title);
+            div.appendChild(body);
+            howRoot.appendChild(div);
+        });
+    }
+
+    const fTrack = document.getElementById('socialFslidesTrack');
+    const fDots = document.getElementById('socialFslidesDots');
+    const fPrev = document.getElementById('socialFPrev');
+    const fNext = document.getElementById('socialFNext');
+    const fViewport = fTrack?.parentElement;
+
+    function storyVisualImages(index) {
+        const pack = SUCCESS_STORY_VISUALS[index];
+        if (pack) {
+            return { image: pack.image, alt: pack.alt };
+        }
+        const n = GALLERY_ITEMS.length || 1;
+        const a = GALLERY_ITEMS[index % n];
+        return { image: a.src, alt: a.alt };
+    }
+
+    function buildStorySlide(slide, index) {
+        const slideEl = document.createElement('div');
+        slideEl.className = 'social-fslide';
+        slideEl.setAttribute('role', 'group');
+        slideEl.setAttribute('aria-roledescription', 'slide');
+
+        const vis = document.createElement('div');
+        vis.className = 'social-fslide-visual';
+        const { image, alt } = storyVisualImages(index);
+        const imgMain = document.createElement('img');
+        imgMain.className = 'social-fslide-visual__main';
+        imgMain.src = image;
+        imgMain.alt = alt;
+        imgMain.loading = index === 0 ? 'eager' : 'lazy';
+        imgMain.decoding = 'async';
+        vis.appendChild(imgMain);
+
+        const copy = document.createElement('div');
+        copy.className = 'social-fslide-copy';
+        const q = document.createElement('blockquote');
+        q.className = 'social-fslide-quote';
+        q.textContent = slide.quote;
+        const meta = document.createElement('p');
+        meta.className = 'social-fslide-meta';
+        const nameEl = document.createElement('span');
+        nameEl.className = 'social-fslide-name';
+        nameEl.textContent = slide.name;
+        const roleEl = document.createElement('span');
+        roleEl.className = 'social-fslide-role';
+        roleEl.textContent = `${slide.role}, ${slide.org}`;
+        meta.appendChild(nameEl);
+        meta.appendChild(roleEl);
+        copy.appendChild(q);
+        copy.appendChild(meta);
+
+        slideEl.appendChild(vis);
+        slideEl.appendChild(copy);
+        return slideEl;
+    }
+
+    const storySlides = [
+        { quote: SOCIAL_PROOF.featured.quote, name: SOCIAL_PROOF.featured.name, role: SOCIAL_PROOF.featured.role, org: SOCIAL_PROOF.featured.org },
+        ...SOCIAL_PROOF.cards.map((c) => ({
+            quote: c.quote,
+            name: c.name,
+            role: c.role,
+            org: c.org,
+        })),
+    ];
+
+    if (fTrack && storySlides.length) {
+        fTrack.replaceChildren();
+        storySlides.forEach((s, i) => {
+            fTrack.appendChild(buildStorySlide(s, i));
+        });
+    }
+
+    const cardsRoot = document.getElementById('socialCards');
+    const cardsVp = document.getElementById('socialCardsViewport');
+    if (cardsRoot) {
+        cardsRoot.innerHTML = '';
+        SOCIAL_PROOF.cards.forEach((c) => {
+            const el = document.createElement('article');
+            el.className = 'social-card';
+            const head = document.createElement('div');
+            head.className = 'social-card__head';
+            const iconWrap = document.createElement('span');
+            iconWrap.className = 'social-card__icon';
+            appendSocialCardIcon(iconWrap, c.icon || 'bolt');
+            const brand = document.createElement('span');
+            brand.className = 'social-card__brand';
+            brand.textContent = c.brand || c.org;
+            head.appendChild(iconWrap);
+            head.appendChild(brand);
+
+            const q = document.createElement('p');
+            q.className = 'social-card__quote';
+            q.textContent = c.quote;
+
+            const foot = document.createElement('div');
+            foot.className = 'social-card__foot';
+            const av = document.createElement('div');
+            av.className = 'social-card__avatar';
+            av.setAttribute('aria-hidden', 'true');
+            av.textContent = c.initials;
+            const who = document.createElement('div');
+            who.className = 'social-card__who';
+            const n = document.createElement('span');
+            n.className = 'social-name';
+            n.textContent = c.name;
+            const r = document.createElement('span');
+            r.className = 'social-role';
+            r.textContent = `${c.role} — ${c.org}`;
+            who.appendChild(n);
+            who.appendChild(r);
+            foot.appendChild(av);
+            foot.appendChild(who);
+
+            el.appendChild(head);
+            el.appendChild(q);
+            el.appendChild(foot);
+            cardsRoot.appendChild(el);
+        });
+    }
+
+    if (fTrack && fViewport && fDots && fPrev && fNext && storySlides.length) {
+        let fi = 0;
+        const nSlides = storySlides.length;
+
+        fDots.replaceChildren();
+        for (let i = 0; i < nSlides; i++) {
+            const dot = document.createElement('button');
+            dot.type = 'button';
+            dot.className = 'social-fslide-dot';
+            dot.setAttribute('role', 'tab');
+            dot.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
+            dot.setAttribute('aria-label', `Story ${i + 1} of ${nSlides}`);
+            dot.addEventListener('click', () => {
+                fi = i;
+                applyFeaturedSlide();
+            });
+            fDots.appendChild(dot);
+        }
+
+        function featuredSlideWidth() {
+            return fViewport.getBoundingClientRect().width;
+        }
+
+        function applyFeaturedSlide() {
+            const w = featuredSlideWidth();
+            fTrack.style.transform = `translate3d(${-fi * w}px, 0, 0)`;
+            fDots.querySelectorAll('.social-fslide-dot').forEach((d, j) => {
+                d.classList.toggle('is-active', j === fi);
+                d.setAttribute('aria-selected', j === fi ? 'true' : 'false');
+            });
+        }
+
+        fPrev.addEventListener('click', () => {
+            fi = (fi - 1 + nSlides) % nSlides;
+            applyFeaturedSlide();
+        });
+        fNext.addEventListener('click', () => {
+            fi = (fi + 1) % nSlides;
+            applyFeaturedSlide();
+        });
+
+        let ftResizeTimer = null;
+        window.addEventListener('resize', () => {
+            clearTimeout(ftResizeTimer);
+            ftResizeTimer = setTimeout(() => {
+                ftResizeTimer = null;
+                applyFeaturedSlide();
+            }, 120);
+        });
+        applyFeaturedSlide();
+    }
+
+    const prevCards = document.getElementById('socialCardsPrev');
+    const nextCards = document.getElementById('socialCardsNext');
+    if (cardsVp && prevCards && nextCards && cardsRoot?.children.length) {
+        const scrollStep = () => {
+            const first = cardsRoot.querySelector('.social-card');
+            if (!first) return 320;
+            const gap = parseFloat(getComputedStyle(cardsRoot).columnGap || getComputedStyle(cardsRoot).gap) || 16;
+            return first.getBoundingClientRect().width + gap;
+        };
+        prevCards.addEventListener('click', () => {
+            cardsVp.scrollBy({ left: -scrollStep(), behavior: 'smooth' });
+        });
+        nextCards.addEventListener('click', () => {
+            cardsVp.scrollBy({ left: scrollStep(), behavior: 'smooth' });
+        });
+    }
+
+})();
+
+(function mountProductCards() {
+    const grid = document.getElementById('productsGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    PRODUCTS.forEach((p) => {
+        const card = document.createElement('article');
+        card.className = 'product-card';
+        card.dataset.anim = '';
+
+        const wrap = document.createElement('div');
+        wrap.className = 'prod-img-wrap' + (p.dark ? ' prod-img-dark' : '');
+
+        const imgMain = document.createElement('img');
+        imgMain.className = 'prod-img prod-img-main';
+        imgMain.src = p.imgMain;
+        imgMain.alt = p.name;
+        imgMain.loading = 'lazy';
+        imgMain.decoding = 'async';
+
+        const imgHover = document.createElement('img');
+        imgHover.className = 'prod-img prod-img-hover';
+        imgHover.src = p.imgHover;
+        imgHover.alt = `${p.name} — alternate view`;
+        imgHover.loading = 'lazy';
+        imgHover.decoding = 'async';
+
+        wrap.appendChild(imgMain);
+        wrap.appendChild(imgHover);
+
+        const h3 = document.createElement('h3');
+        h3.className = 'prod-name';
+        h3.textContent = p.name;
+
+        const desc = document.createElement('p');
+        desc.className = 'prod-desc';
+        desc.textContent = p.desc;
+
+        const price = document.createElement('p');
+        price.className = 'prod-price';
+        price.textContent = p.price;
+
+        const a = document.createElement('a');
+        a.className = 'btn-primary btn-sm';
+        a.href = p.href;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = 'Buy';
+
+        card.appendChild(wrap);
+        card.appendChild(h3);
+        card.appendChild(desc);
+        card.appendChild(price);
+        card.appendChild(a);
+        grid.appendChild(card);
+    });
+})();
 
 // =============================================
 // Scroll Animations — fade-in
@@ -2505,6 +2987,22 @@ function initAssemblyViewer() {
         canvas: asmCanvas,
         alpha: false,
     });
+    if (!asmRenderer.getContext()) {
+        try {
+            asmRenderer.dispose();
+        } catch {
+            /* ignore */
+        }
+        asmRenderer = null;
+        asmCanvas?.classList.add('visually-hidden');
+        asmCanvas?.setAttribute('aria-hidden', 'true');
+        asmStage?.classList.add('is-ready', 'has-static-fallback');
+        document.getElementById('assemblyLoader')?.classList.add('hidden');
+        const fb = document.getElementById('assemblyFallback');
+        fb?.removeAttribute('hidden');
+        fb?.setAttribute('aria-hidden', 'false');
+        return;
+    }
     function applyAsmPixelRatio() {
         if (!asmRenderer) return;
         const narrow = window.matchMedia('(max-width: 768px)').matches;
@@ -2637,7 +3135,11 @@ function initAssemblyViewer() {
                 console.log(`[Assembly bion.glb] refMeshes: ${refMeshes.length}`);
 
                 if (refMeshes.length === 0) {
+                    asmCanvas?.classList.add('visually-hidden');
+                    asmCanvas?.setAttribute('aria-hidden', 'true');
+                    asmStage?.classList.add('has-static-fallback');
                     asmFallback?.removeAttribute('hidden');
+                    asmFallback?.setAttribute('aria-hidden', 'false');
                     return;
                 }
 
@@ -2865,7 +3367,11 @@ function initAssemblyViewer() {
         },
         undefined,
         () => {
+            asmCanvas?.classList.add('visually-hidden');
+            asmCanvas?.setAttribute('aria-hidden', 'true');
+            asmStage?.classList.add('has-static-fallback');
             asmFallback?.removeAttribute('hidden');
+            asmFallback?.setAttribute('aria-hidden', 'false');
             asmStage?.classList.add('is-ready');
         }
     );
@@ -3066,6 +3572,22 @@ function initConstructionWall() {
         canvas: consCanvas,
         alpha: false,
     });
+    if (!consRenderer.getContext()) {
+        try {
+            consRenderer.dispose();
+        } catch {
+            /* ignore */
+        }
+        consRenderer = null;
+        consCanvas?.classList.add('visually-hidden');
+        consCanvas?.setAttribute('aria-hidden', 'true');
+        consStage?.classList.add('is-ready', 'has-static-fallback');
+        document.getElementById('constructionLoader')?.classList.add('hidden');
+        const fb = document.getElementById('constructionFallback');
+        fb?.removeAttribute('hidden');
+        fb?.setAttribute('aria-hidden', 'false');
+        return;
+    }
     function applyConsPixelRatio() {
         if (!consRenderer) return;
         const cap = window.matchMedia('(max-width: 768px)').matches ? 1.25 : 2;
@@ -4225,7 +4747,11 @@ function initConstructionWall() {
         } catch (e) {
             console.warn('Construction wall:', e);
             consLoopRestartFn = null;
+            consCanvas?.classList.add('visually-hidden');
+            consCanvas?.setAttribute('aria-hidden', 'true');
+            consStage?.classList.add('has-static-fallback');
             consFallback?.removeAttribute('hidden');
+            consFallback?.setAttribute('aria-hidden', 'false');
             consStage?.classList.add('is-ready');
         }
     })();
@@ -4262,6 +4788,32 @@ function scheduleHeavySectionInit(sectionId, initFn) {
 
 scheduleHeavySectionInit('construction', initConstructionWall);
 scheduleHeavySectionInit('assembly', initAssemblyViewer);
+
+// =============================================
+// Contact — mailto handoff (no fake POST)
+// =============================================
+(function initContactForm() {
+    const form = document.getElementById('contactForm');
+    const status = document.getElementById('contactFormStatus');
+    if (!form) return;
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const name = String(fd.get('name') || '').trim();
+        const email = String(fd.get('email') || '').trim();
+        const message = String(fd.get('message') || '').trim();
+        if (!name || !email || !message) return;
+        const subject = encodeURIComponent(`cubik.one — inquiry from ${name}`);
+        const body = encodeURIComponent(`Name: ${name}\nEmail: ${email}\n\n${message}\n`);
+        window.location.href = `mailto:hello@cubik.one?subject=${subject}&body=${body}`;
+        if (status) {
+            status.hidden = false;
+            status.textContent =
+                'If your mail program did not open automatically, write to hello@cubik.one with the same details.';
+        }
+        form.reset();
+    });
+})();
 
 // =============================================
 // Section titles entrance

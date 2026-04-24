@@ -3,39 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>cubik.one — Modular cubiks</title>
+    <title>cubik.one — Modular space, built by you</title>
+    <meta name="description" content="Modular cubiks, facets, and clips to build garden walls, interiors, and furniture. Configure in the 3D editor, then assemble with a calm, engineered fit.">
+    <link rel="canonical" href="https://cubik.one/">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="cubik.one — Modular space, built by you">
+    <meta property="og:description" content="Premium composite cubiks with interchangeable facets—UV stable, climate rated, and ready for real projects.">
+    <meta property="og:url" content="https://cubik.one/">
+    <meta property="og:image" content="https://cubik.one/assets/images/banner/Garden/2.jpeg">
+    <meta name="twitter:card" content="summary_large_image">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css?v=51">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css?v=57">
     <link rel="preload" as="image" href="assets/images/banner/Garden/2.jpeg" fetchpriority="high">
 </head>
-<body>
+<body class="landing-hide-stage-blocks">
 
-<!-- Navigation -->
-<nav class="nav" id="nav">
+<nav class="nav" id="nav" aria-label="Primary">
     <div class="nav-inner">
-        <a href="#banner" class="nav-logo">
+        <a href="#hero" class="nav-logo">
             <img src="assets/images/brand/logo.png" alt="cubik.one" class="nav-logo-img" width="140" height="28" decoding="async">
         </a>
-        <div class="nav-links">
-            <a href="#banner">Overview</a>
-            <a href="#products">Products</a>
+        <div class="nav-links" id="navLinks">
+            <a href="#material">Why modular</a>
+            <a href="#assembly">Assembly</a>
+            <a href="#construction">Clips</a>
             <a href="#facets">Facets</a>
-            <a href="#construction">Build</a>
-            <a href="#material">Material</a>
-            <a href="#" class="nav-buy">Buy</a>
+            <a href="#gallery">Gallery</a>
+            <a href="#products">Shop</a>
+            <a href="#faq">FAQ</a>
+            <a href="#contact">Contact</a>
+            <a href="https://cubik.one/catalog/" class="nav-buy" target="_blank" rel="noopener noreferrer">Shop</a>
         </div>
-        <button class="nav-burger" id="navBurger" aria-label="Menu">
+        <button class="nav-burger" id="navBurger" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">
             <span></span><span></span>
         </button>
     </div>
 </nav>
 
-<!-- Banner — centered visual + headline only -->
-<section class="hero banner" id="banner">
+<section class="hero banner" id="hero">
     <div class="hero-inner hero-inner--centered">
-        <h1 class="hero-title hero-title--hero">Modular space,<br>built by you.</h1>
+        <div class="hero-copy" data-anim>
+            <p class="hero-kicker">cubik.one</p>
+            <h1 class="hero-title hero-title--hero">Modular space,<br>built by you.</h1>
+        </div>
         <div class="hero-showcase" id="heroShowcase">
             <div class="hero-showcase-main">
                 <div class="hero-showcase-frame" data-hero-parallax>
@@ -43,7 +55,7 @@
                         <img
                             class="hero-showcase-layer hero-showcase-layer--a is-visible"
                             src="assets/images/banner/Garden/2.jpeg"
-                            alt="Garden"
+                            alt="Garden installation with modular cubiks"
                             width="1600"
                             height="1200"
                             fetchpriority="high"
@@ -61,7 +73,7 @@
                     </div>
                 </div>
             </div>
-            <div class="hero-float-stack" role="tablist" aria-label="Сценарии использования">
+            <div class="hero-float-stack" role="tablist" aria-label="Use cases">
                 <button type="button" class="hero-float hero-float--a" role="tab" aria-selected="true" data-category-index="0">
                     <span class="hero-float-inner">
                         <img src="assets/images/banner/Garden/2.jpeg" alt="" width="320" height="240" loading="lazy" decoding="async">
@@ -91,52 +103,20 @@
     </div>
 </section>
 
-<!-- Brand film — сразу под баннером; рамка и ширина как у hero-showcase; зацикленный ролик (заморозка в конце для стыка с началом) -->
-<section class="head-video-section" id="headVideo" aria-label="Brand film">
-    <div class="head-video-inner">
-        <div class="head-video-frame">
-            <video
-                class="head-video-media"
-                src="assets/media/video/head_video.mp4"
-                autoplay
-                muted
-                loop
-                playsinline
-                preload="auto"
-                aria-label="cubik.one brand film"
-            ></video>
-        </div>
-    </div>
-</section>
-
-<!-- Construction / Clips — 3×3 wall + clips -->
-<section class="section construction" id="construction">
-    <h2 class="section-title">Easy to connect<br>with clips.</h2>
-    <div class="section-stage-card">
-        <div class="construction-stage" id="constructionStage">
-            <canvas id="constructionCanvas" aria-label="Modular wall and clips"></canvas>
-            <p class="stage-loader construction-loader" id="constructionLoader" aria-live="polite">Loading 3D scene…</p>
-            <p class="construction-fallback" id="constructionFallback" hidden>Could not load wall models — check void.obj, bion.obj, zen.obj, and clips.obj in assets/models.</p>
-        </div>
-        <p class="section-sub section-sub--below-stage">Snap it in—done. Scale your build to any size.</p>
-    </div>
-</section>
-
-<!-- Modular 3D hero + material — accordion + cubik (карточка как у Easy to connect) -->
 <section class="section modular-hero" id="material">
     <h2 class="section-title modular-hero-title">Modular cubiks to<br>build anything</h2>
     <div class="modular-hero-stage">
         <div class="modular-hero-inner">
             <div class="modular-hero-copy">
                 <div class="modular-accordion" id="modularAccordion">
-                <div class="modular-acc-item" data-acc-item>
-                    <button type="button" class="modular-acc-trigger" id="acc-trigger-load" aria-expanded="false" aria-controls="acc-panel-load">
+                <div class="modular-acc-item is-open" data-acc-item>
+                    <button type="button" class="modular-acc-trigger" id="acc-trigger-load" aria-expanded="true" aria-controls="acc-panel-load">
                         <span class="modular-acc-icon-btn" aria-hidden="true"><span class="modular-acc-plus"></span></span>
                         <span class="modular-acc-label">1.5 t</span>
                     </button>
-                    <div class="modular-acc-panel" id="acc-panel-load" role="region" aria-labelledby="acc-trigger-load" aria-hidden="true">
+                    <div class="modular-acc-panel" id="acc-panel-load" role="region" aria-labelledby="acc-trigger-load" aria-hidden="false">
                         <div class="modular-acc-panel-inner">
-                            <p class="modular-acc-desc">Supports loads up to 1.5 tonnes. Extreme strength.</p>
+                            <p class="modular-acc-desc">Supports loads up to 1.5 tonnes—engineered so planters, storage walls, and furniture stacks stay stable when life gets heavy.</p>
                             <div class="modular-acc-media">
                                 <video
                                     class="modular-acc-video"
@@ -161,7 +141,7 @@
                     </button>
                     <div class="modular-acc-panel" id="acc-panel-uv" role="region" aria-labelledby="acc-trigger-uv" aria-hidden="true">
                         <div class="modular-acc-panel-inner">
-                            <p class="modular-acc-desc">Resistant to UV and all weather. Won’t fade.</p>
+                            <p class="modular-acc-desc">Resistant to UV and all weather. Sun, rain, and temperature swings stay on-brief—surfaces remain readable and color-true season after season.</p>
                         </div>
                     </div>
                 </div>
@@ -175,7 +155,7 @@
                     </button>
                     <div class="modular-acc-panel" id="acc-panel-poly" role="region" aria-labelledby="acc-trigger-poly" aria-hidden="true">
                         <div class="modular-acc-panel-inner">
-                            <p class="modular-acc-desc">Modern premium polymer composite: dense structure, matte warm surface, pleasant to the touch.</p>
+                            <p class="modular-acc-desc">Modern premium polymer composite—dense structure, matte warm surface, pleasant to the touch. Quiet luxury instead of brittle plastic shine.</p>
                         </div>
                     </div>
                 </div>
@@ -189,7 +169,7 @@
                     </button>
                     <div class="modular-acc-panel" id="acc-panel-rec" role="region" aria-labelledby="acc-trigger-rec" aria-hidden="true">
                         <div class="modular-acc-panel-inner">
-                            <p class="modular-acc-desc">Fully recyclable. Zero waste.</p>
+                            <p class="modular-acc-desc">Fully recyclable. Monomaterial-friendly thinking: disassemble, sort, and send fractions where local recycling accepts them.</p>
                         </div>
                     </div>
                 </div>
@@ -203,15 +183,15 @@
                     </button>
                     <div class="modular-acc-panel" id="acc-panel-temp" role="region" aria-labelledby="acc-trigger-temp" aria-hidden="true">
                         <div class="modular-acc-panel-inner">
-                            <p class="modular-acc-desc">Rated for extreme temperatures. From −25 °C to +50 °C.</p>
+                            <p class="modular-acc-desc">Rated for extreme temperatures—from −25 °C to +50 °C. Nordic balconies to Mediterranean courtyards share the same calm tolerances.</p>
                         </div>
                     </div>
                 </div>
                 </div>
             </div>
             <div class="hero-canvas-wrap modular-canvas-wrap" id="heroCanvasWrap">
-                <canvas id="heroCanvas"></canvas>
-                <div class="hero-loader" id="heroLoader">Loading models…</div>
+                <canvas id="heroCanvas" aria-label="Interactive 3D cubik preview"></canvas>
+                <div class="hero-loader stage-loader stage-loader--pulse" id="heroLoader" aria-live="polite" aria-label="Preparing 3D preview"></div>
             </div>
             <div class="modular-controls" id="modularHeroControls">
                 <p class="hero-facet-benefit" id="heroFacetBenefit">Solid relief surfaces — privacy and clean, calm lines.</p>
@@ -237,58 +217,112 @@
     </div>
 </section>
 
-<!-- Assembly — facets to cubik -->
+<section class="head-video-section" id="headVideo" aria-label="Brand film">
+    <div class="head-video-inner">
+        <div class="head-video-frame">
+            <video
+                class="head-video-media"
+                src="assets/media/video/head_video.mp4"
+                muted
+                loop
+                playsinline
+                preload="metadata"
+                aria-label="cubik.one brand film"
+            ></video>
+        </div>
+    </div>
+</section>
+
 <section class="section assembly" id="assembly">
-    <h2 class="section-title">From facets to cubik.</h2>
+    <div class="section-head section-head--center">
+        <h2 class="section-title">From facets to cubik</h2>
+        <p class="section-lead section-lead--center">Six faces, six decisions—then the volume locks into something you can repeat across a run.</p>
+    </div>
     <div class="section-stage-card">
         <div class="assembly-stage">
-            <div class="assembly-canvas-wrap assembly-stage--interactive" id="assemblyStage" role="button" tabindex="0" aria-label="Cubik assembly animation — tap to replay">
-                <canvas id="assemblyCanvas" aria-label="Cubik assembly: six interchangeable facets snap in sequence, then the full cubik spins"></canvas>
+            <div class="assembly-canvas-wrap assembly-stage--interactive" id="assemblyStage" role="button" tabindex="0" aria-label="Replay cubik assembly animation">
+                <canvas id="assemblyCanvas" aria-label="Cubik assembly animation"></canvas>
             </div>
-            <p class="stage-loader assembly-loader" id="assemblyLoader" aria-live="polite">Loading 3D…</p>
-            <p class="assembly-fallback" id="assemblyFallback" hidden>Could not load assembly models — check assets/models/bion.glb, void.glb, zen.glb.</p>
+            <div class="scene-fallback scene-fallback--assembly" id="assemblyFallback" hidden aria-hidden="true">
+                <img src="assets/images/facets/zen/facet.jpg" alt="" width="900" height="900" decoding="async">
+                <img src="assets/images/facets/void/facet-izo.jpg" alt="" width="900" height="900" decoding="async">
+                <div class="scene-fallback__veil"></div>
+                <p class="scene-fallback__caption">Facets meet on one volume—mix textures, keep the grid.</p>
+            </div>
+            <p class="stage-loader assembly-loader stage-loader--pulse" id="assemblyLoader" aria-live="polite" aria-label="Preparing assembly animation"></p>
         </div>
         <p class="section-sub assembly-mix-note">Mix facets and colors to suit the task—one cubik, your combination.</p>
     </div>
 </section>
 
-<!-- Facets -->
-<section class="section facets" id="facets">
-    <h2 class="section-title">Five facets.<br>Infinite ideas.</h2>
-    <div class="facets-grid">
-        <div class="facet-card" data-anim>
-            <img src="assets/images/facets/bion/facet-izo.jpg" alt="Bion" class="facet-img" loading="lazy">
-            <h3>Bion</h3>
-            <p>Open lattice structure. Light flows through. Air circulates.</p>
+<section class="section construction" id="construction">
+    <div class="section-head section-head--center">
+        <h2 class="section-title">Easy to connect<br>with clips</h2>
+        <p class="section-lead section-lead--center">A 3×3 rhythm assembles on camera—then keeps turning so you can study the joint from every angle.</p>
+    </div>
+    <div class="section-stage-card">
+        <div class="construction-stage" id="constructionStage">
+            <canvas id="constructionCanvas" aria-label="Modular wall and clips animation"></canvas>
+            <div class="scene-fallback" id="constructionFallback" hidden aria-hidden="true">
+                <img src="assets/images/banner/Garden/hf-20260210-145115-85d5663e-480f-468c-b147-8c97ea81ff32.jpeg" alt="" width="1200" height="800" decoding="async">
+                <div class="scene-fallback__veil"></div>
+                <p class="scene-fallback__caption">Modular wall in situ—clips seat with a firm, repeatable click.</p>
+            </div>
+            <p class="stage-loader construction-loader stage-loader--pulse" id="constructionLoader" aria-live="polite" aria-label="Preparing 3D scene"></p>
         </div>
-        <div class="facet-card" data-anim>
-            <img src="assets/images/facets/void/facet-izo.jpg" alt="Void" class="facet-img" loading="lazy">
-            <h3>Void</h3>
-            <p>Open frame. Shelves. Niches. Display space.</p>
-        </div>
-        <div class="facet-card" data-anim>
-            <img src="assets/images/facets/zen/facet.jpg" alt="Zen" class="facet-img" loading="lazy">
-            <h3>Zen</h3>
-            <p>Solid surface with relief. Privacy. Clean lines.</p>
-        </div>
-        <div class="facet-card" data-anim>
-            <img src="assets/images/facets/flora/facet.jpg" alt="Flora" class="facet-img" loading="lazy">
-            <h3>Flora</h3>
-            <p>Built-in planter. Nature built into the structure.</p>
-        </div>
-        <div class="facet-card" data-anim>
-            <img src="assets/images/facets/zen2/facet.jpg" alt="Zen/2" class="facet-img" loading="lazy">
-            <h3>Zen/2</h3>
-            <p>Narrow facet for more layout options.</p>
-        </div>
+        <p class="section-sub section-sub--below-stage">Snap it in—done. Scale your build to any size.</p>
     </div>
 </section>
 
-<!-- 3D editor — after material / modular -->
+<section class="section facets" id="facets">
+    <div class="section-head section-head--center">
+        <h2 class="section-title">Five facets.<br>Infinite ideas.</h2>
+        <p class="section-lead section-lead--center">Each face is a product decision—choose openness, storage, relief, planting, or a slim Zen profile.</p>
+    </div>
+    <div class="facets-grid">
+        <article class="facet-card" data-anim tabindex="0">
+            <div class="facet-img-wrap">
+                <img src="assets/images/facets/bion/facet-izo.jpg" alt="Bion facet" class="facet-img" loading="lazy" width="640" height="640" decoding="async">
+            </div>
+            <h3>Bion</h3>
+            <p>Open lattice structure. Light flows through. Air circulates.</p>
+        </article>
+        <article class="facet-card" data-anim tabindex="0">
+            <div class="facet-img-wrap">
+                <img src="assets/images/facets/void/facet-izo.jpg" alt="Void facet" class="facet-img" loading="lazy" width="640" height="640" decoding="async">
+            </div>
+            <h3>Void</h3>
+            <p>Open frame. Shelves. Niches. Display space.</p>
+        </article>
+        <article class="facet-card" data-anim tabindex="0">
+            <div class="facet-img-wrap">
+                <img src="assets/images/facets/zen/facet.jpg" alt="Zen facet" class="facet-img" loading="lazy" width="640" height="640" decoding="async">
+            </div>
+            <h3>Zen</h3>
+            <p>Solid surface with relief. Privacy. Clean lines.</p>
+        </article>
+        <article class="facet-card" data-anim tabindex="0">
+            <div class="facet-img-wrap">
+                <img src="assets/images/facets/flora/facet.jpg" alt="Flora facet" class="facet-img" loading="lazy" width="640" height="640" decoding="async">
+            </div>
+            <h3>Flora</h3>
+            <p>Built-in planter. Nature built into the structure.</p>
+        </article>
+        <article class="facet-card" data-anim tabindex="0">
+            <div class="facet-img-wrap">
+                <img src="assets/images/facets/zen2/facet.jpg" alt="Zen/2 facet" class="facet-img" loading="lazy" width="640" height="640" decoding="async">
+            </div>
+            <h3>Zen/2</h3>
+            <p>Narrow facet for more layout options.</p>
+        </article>
+    </div>
+</section>
+
 <section class="section builder-promo" id="builder">
     <div class="builder-promo-inner">
         <div class="builder-promo-text" data-anim>
-            <p class="builder-promo-lead">Create your own design</p>
+            <h2 class="builder-promo-title">Design in 3D,<br>order with confidence</h2>
+            <p class="builder-promo-lead">Lay out facets, preview scale, and share the layout with your team before clips ever leave the box.</p>
             <a href="https://cubik.one/builder/" class="btn-primary" target="_blank" rel="noopener noreferrer">Open editor</a>
         </div>
         <div class="builder-promo-video-wrap" data-anim>
@@ -299,71 +333,142 @@
                 muted
                 loop
                 playsinline
-                preload="auto"
+                preload="metadata"
                 aria-label="cubik.one 3D editor preview"
             ></video>
         </div>
     </div>
 </section>
 
-<!-- Products (shop) — project grid скрыт до готовности контента -->
-<section class="section products products--cta-only" id="products">
-    <h2 class="section-title">Or choose your project.</h2>
-    <div class="products-grid products-grid--hidden" aria-hidden="true">
-        <div class="product-card" data-anim>
-            <div class="prod-img-wrap">
-                <img src="assets/images/products/modular-green-wall-planter/main.png" alt="Modular Green Wall Planter" class="prod-img prod-img-main" loading="lazy">
-                <img src="assets/images/products/modular-green-wall-planter/hover.jpeg" alt="Modular Green Wall Planter — alternate view" class="prod-img prod-img-hover" loading="lazy">
-            </div>
-            <h3 class="prod-name">Modular Green Wall Planter</h3>
-            <p class="prod-desc">This is the modular Green Wall Planter—a vertical living wall for kitchens, studios, and living spaces. Arrange planters and panels on a modular grid for herbs, ornamentals, and cascading greenery without giving up floor space.</p>
-            <p class="prod-price">from €430</p>
-            <a href="https://cubik.one/catalog/planters-pots/modular-green-wall-planter/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
-        </div>
-        <div class="product-card" data-anim>
-            <div class="prod-img-wrap">
-                <img src="assets/images/products/modular-table/main.png" alt="Modular cubik table" class="prod-img prod-img-main" loading="lazy">
-                <img src="assets/images/products/modular-table/hover.png" alt="Modular cubik table — alternate view" class="prod-img prod-img-hover" loading="lazy">
-            </div>
-            <h3 class="prod-name">Modular cubik table</h3>
-            <p class="prod-desc">A sturdy table you build from cubiks—same clips, new purpose. Flat top, stable base, easy to resize or rebuild for balcony, kitchen, or studio.</p>
-            <p class="prod-price">from €260</p>
-            <a href="https://cubik.one/catalog/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
-        </div>
-        <div class="product-card" data-anim>
-            <div class="prod-img-wrap prod-img-dark">
-                <img src="assets/images/products/balcony-planter-set-2/main.png" alt="Balcony planter set #2" class="prod-img prod-img-main" loading="lazy">
-                <img src="assets/images/products/balcony-planter-set-2/hover.png" alt="Balcony planter set #2 — alternate view" class="prod-img prod-img-hover" loading="lazy">
-            </div>
-            <h3 class="prod-name">Balcony planter set #2</h3>
-            <p class="prod-desc">Compact modular planters for balconies. Bold floral arrangements.</p>
-            <p class="prod-price">from €120</p>
-            <a href="https://cubik.one/catalog/diy-kits/balcony-planter-set-2/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
-        </div>
-        <div class="product-card" data-anim>
-            <div class="prod-img-wrap">
-                <img src="assets/images/products/cat-castle/main.jpeg" alt="Cat Castle" class="prod-img prod-img-main" loading="lazy">
-                <img src="assets/images/products/cat-castle/hover.jpeg" alt="Cat Castle — alternate view" class="prod-img prod-img-hover" loading="lazy">
-            </div>
-            <h3 class="prod-name">Cat Castle</h3>
-            <p class="prod-desc">Modular cat house with a lounging shelf. Cozy—and reconfigurable.</p>
-            <p class="prod-price">from €200</p>
-            <a href="https://cubik.one/catalog/playrooms/cat-house-1/" class="btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Buy</a>
-        </div>
+<section class="section products" id="products">
+    <div class="section-head section-head--center">
+        <h2 class="section-title">Featured projects</h2>
+        <p class="section-lead section-lead--center">Real SKUs from the catalog—prices stay transparent, imagery stays honest.</p>
+    </div>
+    <div class="products-scroll">
+        <div class="products-grid" id="productsGrid"></div>
     </div>
     <div class="products-cta">
         <a href="https://cubik.one/catalog/" class="btn-primary" target="_blank" rel="noopener noreferrer">Go to shop</a>
     </div>
 </section>
 
-<!-- Footer -->
-<footer class="footer">
-    <div class="footer-inner">
-        <div class="footer-links">
-            <a href="#">About</a>
-            <a href="#">Contact</a>
-            <a href="#">Privacy policy</a>
+<section class="section gallery-section" id="gallery">
+    <div class="gallery-split">
+        <div class="gallery-mosaic" id="galleryMosaic" aria-label="Project photo collage"></div>
+        <div class="gallery-aside">
+            <h2 class="section-title section-title--left">Built for real places</h2>
+            <p class="section-lead gallery-aside-lead">
+                A single system stretched across gardens, studios, pets, and public flows—always the same calm detail.
+            </p>
+            <a
+                class="btn-outline"
+                href="https://cubik.one/catalog/"
+                target="_blank"
+                rel="noopener noreferrer"
+            >Browse catalog</a>
         </div>
+    </div>
+</section>
+
+<section class="section how-section" id="how">
+    <div class="section-head section-head--center">
+        <h2 class="section-title">How it works</h2>
+        <p class="section-lead section-lead--center">Three moves from idea to something you can stand next to.</p>
+    </div>
+    <div class="how-grid" id="howGrid"></div>
+</section>
+
+<section class="section social-section" id="social">
+    <div class="social-featured-slider" id="socialFeaturedSlider" role="region" aria-roledescription="carousel" aria-label="Success stories">
+        <p class="social-featured-kicker">Success stories</p>
+        <div class="social-featured-slider-row">
+            <button type="button" class="social-orbit-btn" id="socialFPrev" aria-controls="socialFslidesTrack" aria-label="Previous story">
+                <span class="social-orbit-btn__icon" aria-hidden="true"></span>
+            </button>
+            <div class="social-fslides-viewport">
+                <div class="social-fslides-track" id="socialFslidesTrack"></div>
+            </div>
+            <button type="button" class="social-orbit-btn" id="socialFNext" aria-controls="socialFslidesTrack" aria-label="Next story">
+                <span class="social-orbit-btn__icon social-orbit-btn__icon--next" aria-hidden="true"></span>
+            </button>
+        </div>
+        <div class="social-fslides-dots" id="socialFslidesDots" role="tablist" aria-label="Choose story"></div>
+    </div>
+
+    <div class="social-cards-block">
+        <div class="social-cards-head">
+            <h2 class="section-title section-title--left">Trusted by makers who ship spaces</h2>
+            <div class="social-cards-arrows">
+                <button type="button" class="social-arrow-btn" id="socialCardsPrev" aria-label="Previous reviews">
+                    <span class="social-arrow-btn__glyph" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="social-arrow-btn social-arrow-btn--emphasis" id="socialCardsNext" aria-label="Next reviews">
+                    <span class="social-arrow-btn__glyph social-arrow-btn__glyph--next" aria-hidden="true"></span>
+                </button>
+            </div>
+        </div>
+        <p class="social-cards-lead">Notes from balconies, studios, and pop-ups—same system, different briefs.</p>
+        <div class="social-cards-viewport" id="socialCardsViewport">
+            <div class="social-cards-track" id="socialCards"></div>
+        </div>
+    </div>
+</section>
+
+<section class="section faq-section" id="faq">
+    <div class="section-head section-head--faq">
+        <h2 class="section-title section-title--left">FAQ</h2>
+        <p class="section-lead section-lead--faq">Straight answers—no brochure fog.</p>
+    </div>
+    <div class="faq-accordion" id="faqAccordion"></div>
+</section>
+
+<section class="section contact-section" id="contact">
+    <div class="contact-grid">
+        <div class="contact-copy" data-anim>
+            <h2 class="section-title section-title--left">Tell us about your build</h2>
+            <p class="section-lead">Share dimensions, photos, or a rough facet mix. We read every message and route commercial inquiries to the right desk.</p>
+            <p class="contact-note">Submitting opens your email app with a pre-filled draft to <strong>hello@cubik.one</strong>—nothing is stored on this static page.</p>
+        </div>
+        <form class="contact-form" id="contactForm" novalidate>
+            <label class="form-field">
+                <span>Name</span>
+                <input type="text" name="name" required autocomplete="name" placeholder="Alex Morgan">
+            </label>
+            <label class="form-field">
+                <span>Email</span>
+                <input type="email" name="email" required autocomplete="email" placeholder="you@studio.com">
+            </label>
+            <label class="form-field form-field--full">
+                <span>Project notes</span>
+                <textarea name="message" rows="5" required placeholder="Dimensions, city/climate, facet ideas…"></textarea>
+            </label>
+            <button type="submit" class="btn-primary contact-submit">Send draft</button>
+            <p class="form-status" id="contactFormStatus" hidden role="status"></p>
+        </form>
+    </div>
+</section>
+
+<footer class="footer" id="footer">
+    <div class="footer-grid">
+        <div class="footer-brand">
+            <img src="assets/images/brand/logo.png" alt="cubik.one" class="footer-logo" width="120" height="24" decoding="async">
+            <p class="footer-tagline">Modular cubiks for gardens, interiors, and public spaces—engineered composite, calm details, clip logic you can repeat.</p>
+        </div>
+        <div class="footer-col">
+            <h3 class="footer-heading">Explore</h3>
+            <a href="https://cubik.one/catalog/" target="_blank" rel="noopener noreferrer">Catalog</a>
+            <a href="https://cubik.one/builder/" target="_blank" rel="noopener noreferrer">3D editor</a>
+            <a href="#facets">Facets</a>
+            <a href="#gallery">Gallery</a>
+        </div>
+        <div class="footer-col">
+            <h3 class="footer-heading">Company</h3>
+            <a href="#contact">Contact</a>
+            <a href="mailto:hello@cubik.one">hello@cubik.one</a>
+        </div>
+    </div>
+    <div class="footer-bottom">
         <p class="footer-copy">© 2026 cubik.one. All rights reserved.</p>
     </div>
 </footer>
@@ -378,6 +483,6 @@
     }
 }
 </script>
-<script type="module" src="js/app.js?v=78"></script>
+<script type="module" src="js/app.js?v=79"></script>
 </body>
 </html>
