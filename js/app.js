@@ -44,6 +44,26 @@ function createCompatWebGLRenderer(options) {
     });
 }
 
+function disposeRendererQuietly(renderer) {
+    try {
+        renderer?.dispose?.();
+    } catch {
+        /* ignore */
+    }
+}
+
+function createCompatWebGLRendererOrNull(options) {
+    let renderer = null;
+    try {
+        renderer = createCompatWebGLRenderer(options);
+        if (renderer?.getContext?.()) return renderer;
+    } catch {
+        /* WebGL is unavailable or blocked; callers will show the static fallback. */
+    }
+    disposeRendererQuietly(renderer);
+    return null;
+}
+
 /** Должна совпадать с проверкой после загрузки assembly: глобальный ScrollTrigger.refresh() сдвигает все триггеры и может вызвать onToggle(false) у соседних секций без последующего onToggle(true). */
 function isSectionInPlayViewport(sectionEl) {
     if (!sectionEl) return false;
@@ -548,18 +568,8 @@ function cleanMeshGeometry(mesh, fixGeometry) {
 }
 
 if (canvas && canvasWrap) {
-try {
-    heroRenderer = createCompatWebGLRenderer({ canvas });
-} catch {
-    heroRenderer = null;
-}
-const heroGlOk = Boolean(heroRenderer?.getContext?.());
-if (!heroGlOk) {
-    try {
-        heroRenderer?.dispose?.();
-    } catch {
-        /* ignore */
-    }
+heroRenderer = createCompatWebGLRendererOrNull({ canvas });
+if (!heroRenderer) {
     heroRenderer = null;
     loaderEl?.classList.add('hidden');
     canvas.classList.add('visually-hidden');
@@ -2983,16 +2993,11 @@ function initAssemblyViewer() {
     asmCamera = new THREE.PerspectiveCamera(ASM_CAMERA_FOV_DEFAULT, 1, 0.08, 200);
     asmCamera.position.set(0, 0, 5.5);
 
-    asmRenderer = createCompatWebGLRenderer({
+    asmRenderer = createCompatWebGLRendererOrNull({
         canvas: asmCanvas,
         alpha: false,
     });
-    if (!asmRenderer.getContext()) {
-        try {
-            asmRenderer.dispose();
-        } catch {
-            /* ignore */
-        }
+    if (!asmRenderer) {
         asmRenderer = null;
         asmCanvas?.classList.add('visually-hidden');
         asmCanvas?.setAttribute('aria-hidden', 'true');
@@ -3568,16 +3573,11 @@ function initConstructionWall() {
     consCamera = new THREE.PerspectiveCamera(38, 1, 0.06, 200);
     consCamera.position.set(0, 0.15, 6);
 
-    consRenderer = createCompatWebGLRenderer({
+    consRenderer = createCompatWebGLRendererOrNull({
         canvas: consCanvas,
         alpha: false,
     });
-    if (!consRenderer.getContext()) {
-        try {
-            consRenderer.dispose();
-        } catch {
-            /* ignore */
-        }
+    if (!consRenderer) {
         consRenderer = null;
         consCanvas?.classList.add('visually-hidden');
         consCanvas?.setAttribute('aria-hidden', 'true');
