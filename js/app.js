@@ -554,6 +554,34 @@ try {
     heroRenderer = null;
 }
 const heroGlOk = Boolean(heroRenderer?.getContext?.());
+function showHeroStaticFallback({ fetchPriority = false } = {}) {
+    if (!canvasWrap || !canvas) return;
+    canvasWrap.classList.add('has-static-fallback');
+    canvas.classList.add('visually-hidden');
+    canvas.setAttribute('aria-hidden', 'true');
+    if (!canvasWrap.querySelector('.hero-static-fallback')) {
+        const fig = document.createElement('figure');
+        fig.className = 'hero-static-fallback';
+        const img = document.createElement('img');
+        img.src = 'assets/images/banner/Garden/2.jpeg';
+        img.alt = 'Cubik modular system in a garden setting';
+        img.width = 1200;
+        img.height = 900;
+        img.decoding = 'async';
+        if (fetchPriority) img.setAttribute('fetchpriority', 'high');
+        fig.appendChild(img);
+        canvasWrap.insertBefore(fig, canvasWrap.firstChild);
+    }
+}
+
+function hideHeroStaticFallback() {
+    if (!canvasWrap || !canvas) return;
+    canvasWrap.classList.remove('has-static-fallback');
+    canvas.classList.remove('visually-hidden');
+    canvas.removeAttribute('aria-hidden');
+    canvasWrap.querySelector('.hero-static-fallback')?.remove();
+}
+
 if (!heroGlOk) {
     try {
         heroRenderer?.dispose?.();
@@ -562,16 +590,7 @@ if (!heroGlOk) {
     }
     heroRenderer = null;
     loaderEl?.classList.add('hidden');
-    canvas.classList.add('visually-hidden');
-    canvas.setAttribute('aria-hidden', 'true');
-    canvasWrap.classList.add('has-static-fallback');
-    if (!canvasWrap.querySelector('.hero-static-fallback')) {
-        const fig = document.createElement('figure');
-        fig.className = 'hero-static-fallback';
-        fig.innerHTML =
-            '<img src="assets/images/banner/Garden/2.jpeg" alt="Cubik modular system in a garden setting" width="1200" height="900" decoding="async" fetchpriority="high" />';
-        canvasWrap.insertBefore(fig, canvasWrap.firstChild);
-    }
+    showHeroStaticFallback({ fetchPriority: true });
 } else {
 heroScene = new THREE.Scene();
 heroScene.background = new THREE.Color(0xffffff);
@@ -646,6 +665,8 @@ function onHeroModelLoaded(index) {
         setupHeroFacetPicker();
         heroLayoutInitialized = true;
         loaderEl?.classList.add('hidden');
+        hideHeroStaticFallback();
+        resizeHeroRenderer();
         scheduleRemainingHeroModels();
     } else if (heroTiltGroup && loadedModels[index]) {
         const g = loadedModels[index];
@@ -1024,18 +1045,7 @@ loadHeroModelAt(HERO_DEFAULT_FACET_INDEX);
 window.setTimeout(() => {
     if (heroLayoutInitialized) return;
     loaderEl?.classList.add('hidden');
-    if (!canvasWrap?.classList.contains('has-static-fallback')) {
-        canvasWrap?.classList.add('has-static-fallback');
-        canvas?.classList.add('visually-hidden');
-        canvas?.setAttribute('aria-hidden', 'true');
-        if (!canvasWrap.querySelector('.hero-static-fallback')) {
-            const fig = document.createElement('figure');
-            fig.className = 'hero-static-fallback';
-            fig.innerHTML =
-                '<img src="assets/images/banner/Garden/2.jpeg" alt="Cubik modular system in a garden setting" width="1200" height="900" decoding="async" />';
-            canvasWrap.insertBefore(fig, canvasWrap.firstChild);
-        }
-    }
+    showHeroStaticFallback();
 }, 14000);
 
 function resizeHeroRenderer() {
