@@ -2983,13 +2983,17 @@ function initAssemblyViewer() {
     asmCamera = new THREE.PerspectiveCamera(ASM_CAMERA_FOV_DEFAULT, 1, 0.08, 200);
     asmCamera.position.set(0, 0, 5.5);
 
-    asmRenderer = createCompatWebGLRenderer({
-        canvas: asmCanvas,
-        alpha: false,
-    });
-    if (!asmRenderer.getContext()) {
+    try {
+        asmRenderer = createCompatWebGLRenderer({
+            canvas: asmCanvas,
+            alpha: false,
+        });
+    } catch {
+        asmRenderer = null;
+    }
+    if (!asmRenderer?.getContext?.()) {
         try {
-            asmRenderer.dispose();
+            asmRenderer?.dispose?.();
         } catch {
             /* ignore */
         }
@@ -3568,13 +3572,17 @@ function initConstructionWall() {
     consCamera = new THREE.PerspectiveCamera(38, 1, 0.06, 200);
     consCamera.position.set(0, 0.15, 6);
 
-    consRenderer = createCompatWebGLRenderer({
-        canvas: consCanvas,
-        alpha: false,
-    });
-    if (!consRenderer.getContext()) {
+    try {
+        consRenderer = createCompatWebGLRenderer({
+            canvas: consCanvas,
+            alpha: false,
+        });
+    } catch {
+        consRenderer = null;
+    }
+    if (!consRenderer?.getContext?.()) {
         try {
-            consRenderer.dispose();
+            consRenderer?.dispose?.();
         } catch {
             /* ignore */
         }
