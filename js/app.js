@@ -491,6 +491,16 @@ let heroCamera = null;
 let heroRenderer = null;
 let heroRotationY = 0;
 let heroCompositionRoot = null;
+/** Visible WebGL + compositor scroll can wedge Chrome; keep hero renders in short idle bursts. */
+const HERO_SCROLL_RENDER_PAUSE_MS = 240;
+const HERO_RENDER_FRAME_BURST = 3;
+let heroRenderPausedForScroll = false;
+let heroRenderScrollTimer = null;
+let heroRenderFramesRemaining = HERO_RENDER_FRAME_BURST;
+
+function requestHeroRenderFrames(frames = HERO_RENDER_FRAME_BURST) {
+    heroRenderFramesRemaining = Math.max(heroRenderFramesRemaining, frames);
+}
 
 function getActiveHeroColorSwatchHex() {
     const el = document.querySelector('#colorPicker .swatch.active');
@@ -518,6 +528,7 @@ function applyHeroPaletteColorToRoot(root, hexCss, { animate = false } = {}) {
             child.material.color.copy(target);
         }
     });
+    requestHeroRenderFrames(animate ? 30 : 3);
 }
 
 /** Согласовать материалы hero с активным свотчем (модели Zen стартуют с серым «фасетным» базовым цветом). */
@@ -654,6 +665,7 @@ function onHeroModelLoaded(index) {
         syncHeroSceneToActiveColorSwatch({ animate: false });
     }
     updateHeroFacetTabAvailability();
+    requestHeroRenderFrames(3);
 }
 
 function loadHeroModelAt(index) {
@@ -821,6 +833,7 @@ function setHeroFacetFocus(index) {
     if (!next) return;
 
     syncHeroSceneToActiveColorSwatch({ animate: false });
+    requestHeroRenderFrames(4);
 
     next.position.set(0, 0, 0);
     if (heroFacetSwitchTween) {
@@ -849,6 +862,7 @@ function setHeroFacetFocus(index) {
             heroFacetSwitchTween = null;
             next.scale.setScalar(1);
             fitHeroCamera([next], { tight: true, frameLoosen: currentHeroFrameLoosen() });
+            requestHeroRenderFrames(3);
         },
     });
     heroFacetSwitchTween.to(pulse, {
@@ -1050,6 +1064,7 @@ function resizeHeroRenderer() {
         const active = loadedModels[heroFacetIndex];
         if (active) fitHeroCamera([active], { tight: true, frameLoosen: currentHeroFrameLoosen() });
     }
+    requestHeroRenderFrames(3);
 }
 resizeHeroRenderer();
 window.addEventListener('resize', resizeHeroRenderer);
@@ -1319,16 +1334,13 @@ const CONS_WALL_ROT_FAST = CONS_WALL_ROT_NORMAL * 2.6;
 /** Масштаб кадра: приращения rotation.* ниже подобраны под ~60 fps; без этого на слабом FPS вращение «ползёт». */
 const ANIM_DT_REF_FPS = 60;
 let animPrevFrameMs = performance.now();
-/** Visible WebGL + compositor scroll can wedge Chrome; pause only the hero render loop while scrolling. */
-const HERO_SCROLL_RENDER_PAUSE_MS = 140;
-let heroRenderPausedForScroll = false;
-let heroRenderScrollTimer = null;
 
 function markHeroRenderScrollActive() {
     heroRenderPausedForScroll = true;
     clearTimeout(heroRenderScrollTimer);
     heroRenderScrollTimer = setTimeout(() => {
         heroRenderPausedForScroll = false;
+        requestHeroRenderFrames();
     }, HERO_SCROLL_RENDER_PAUSE_MS);
 }
 
@@ -1343,7 +1355,13 @@ window.addEventListener('scroll', markHeroRenderScrollActive, { passive: true })
     if (animDtSec > 0.05) animDtSec = 0.05;
     const animFrameScale = animDtSec * ANIM_DT_REF_FPS;
 
-    if (heroRenderer && heroScene && heroCamera && !heroRenderPausedForScroll) {
+    if (
+        heroRenderer &&
+        heroScene &&
+        heroCamera &&
+        !heroRenderPausedForScroll &&
+        heroRenderFramesRemaining > 0
+    ) {
         heroRotationY += HERO_ROT_SPEED * animFrameScale;
         if (heroCompositionRoot) {
             heroCompositionRoot.rotation.y = heroRotationY;
@@ -1352,6 +1370,7 @@ window.addEventListener('scroll', markHeroRenderScrollActive, { passive: true })
         }
         if (heroSectionInView) {
             heroRenderer.render(heroScene, heroCamera);
+            heroRenderFramesRemaining -= 1;
         }
     }
 
