@@ -1319,6 +1319,20 @@ const CONS_WALL_ROT_FAST = CONS_WALL_ROT_NORMAL * 2.6;
 /** Масштаб кадра: приращения rotation.* ниже подобраны под ~60 fps; без этого на слабом FPS вращение «ползёт». */
 const ANIM_DT_REF_FPS = 60;
 let animPrevFrameMs = performance.now();
+/** Visible WebGL + compositor scroll can wedge Chrome; pause only the hero render loop while scrolling. */
+const HERO_SCROLL_RENDER_PAUSE_MS = 140;
+let heroRenderPausedForScroll = false;
+let heroRenderScrollTimer = null;
+
+function markHeroRenderScrollActive() {
+    heroRenderPausedForScroll = true;
+    clearTimeout(heroRenderScrollTimer);
+    heroRenderScrollTimer = setTimeout(() => {
+        heroRenderPausedForScroll = false;
+    }, HERO_SCROLL_RENDER_PAUSE_MS);
+}
+
+window.addEventListener('scroll', markHeroRenderScrollActive, { passive: true });
 
 (function animate() {
     requestAnimationFrame(animate);
@@ -1329,7 +1343,7 @@ let animPrevFrameMs = performance.now();
     if (animDtSec > 0.05) animDtSec = 0.05;
     const animFrameScale = animDtSec * ANIM_DT_REF_FPS;
 
-    if (heroRenderer && heroScene && heroCamera) {
+    if (heroRenderer && heroScene && heroCamera && !heroRenderPausedForScroll) {
         heroRotationY += HERO_ROT_SPEED * animFrameScale;
         if (heroCompositionRoot) {
             heroCompositionRoot.rotation.y = heroRotationY;
