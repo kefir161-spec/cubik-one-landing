@@ -26,7 +26,6 @@
     --acc-ease: cubic-bezier(0.16, 1, 0.3, 1);
     --acc-dur: 0.52s;
 }
-
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 .visually-hidden {
@@ -40,7 +39,6 @@
     white-space: nowrap;
     border: 0;
 }
-
 html {
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
@@ -2189,14 +2187,4 @@ section[id] {
         aspect-ratio: 1 / 1.08;
         max-height: min(46vh, 400px);
     }
-}
-
-/* Временно скрытые секции: убери класс `landing-hide-stage-blocks` с <body>, чтобы снова показать. */
-body.landing-hide-stage-blocks #assembly,
-body.landing-hide-stage-blocks #construction {
-    display: none !important;
-}
-body.landing-hide-stage-blocks .nav-links a[href='#assembly'],
-body.landing-hide-stage-blocks .nav-links a[href='#construction'] {
-    display: none !important;
 }
