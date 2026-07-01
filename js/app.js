@@ -16,7 +16,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 gsap.registerPlugin(ScrollTrigger);
-console.log('%c[app.js v107] LOADED', 'color:lime;font-weight:bold;font-size:14px');
+console.log('%c[app.js v108] LOADED', 'color:lime;font-weight:bold;font-size:14px');
 
 /** Пути к моделям от каталога модуля — работает при деплое в подпапку (GitHub Pages и т.п.). */
 const ASSETS_BASE = new URL('../assets/', import.meta.url).href;
@@ -625,6 +625,13 @@ heroGltfLoader.setDRACOLoader(dracoHero);
 
 let heroLayoutInitialized = false;
 
+function revealHeroCanvasAfterFallback() {
+    canvasWrap?.classList.remove('has-static-fallback');
+    canvas?.classList.remove('visually-hidden');
+    canvas?.removeAttribute('aria-hidden');
+    canvasWrap?.querySelector('.hero-static-fallback')?.remove();
+}
+
 function scheduleRemainingHeroModels() {
     const run = () => {
         modelFiles.forEach((_, i) => {
@@ -645,7 +652,9 @@ function onHeroModelLoaded(index) {
         layoutHeroSingleCubikMode();
         setupHeroFacetPicker();
         heroLayoutInitialized = true;
+        revealHeroCanvasAfterFallback();
         loaderEl?.classList.add('hidden');
+        requestAnimationFrame(resizeHeroRenderer);
         scheduleRemainingHeroModels();
     } else if (heroTiltGroup && loadedModels[index]) {
         const g = loadedModels[index];
@@ -4809,9 +4818,8 @@ scheduleHeavySectionInit('assembly', initAssemblyViewer);
         if (status) {
             status.hidden = false;
             status.textContent =
-                'If your mail program did not open automatically, write to hello@cubik.one with the same details.';
+                'If your mail program did not open automatically, write to hello@cubik.one with the same details. Your draft stays here so you can copy it.';
         }
-        form.reset();
     });
 })();
 
