@@ -4811,7 +4811,6 @@ scheduleHeavySectionInit('assembly', initAssemblyViewer);
             status.textContent =
                 'If your mail program did not open automatically, write to hello@cubik.one with the same details.';
         }
-        form.reset();
     });
 })();
 
