@@ -2190,13 +2190,3 @@ section[id] {
         max-height: min(46vh, 400px);
     }
 }
-
-/* Временно скрытые секции: убери класс `landing-hide-stage-blocks` с <body>, чтобы снова показать. */
-body.landing-hide-stage-blocks #assembly,
-body.landing-hide-stage-blocks #construction {
-    display: none !important;
-}
-body.landing-hide-stage-blocks .nav-links a[href='#assembly'],
-body.landing-hide-stage-blocks .nav-links a[href='#construction'] {
-    display: none !important;
-}
