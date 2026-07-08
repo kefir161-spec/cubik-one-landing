@@ -13,10 +13,11 @@ def read_text(relative_path):
 class StaticRegressionTests(unittest.TestCase):
     def test_pages_deploys_only_from_main(self):
         workflow = read_text(".github/workflows/deploy-pages.yml")
+        branches_block = re.search(r"branches:\n(?P<items>(?:\s*-\s*[^\n]+\n?)+)", workflow)
 
-        self.assertIn("- main", workflow)
-        self.assertNotIn("feature/landing-share", workflow)
-        self.assertNotRegex(workflow, r"branches:\s*(?:\n\s*-\s*(?!main\b)[^\n]+)+")
+        self.assertIsNotNone(branches_block)
+        branches = re.findall(r"^\s*-\s*(.+?)\s*$", branches_block.group("items"), re.M)
+        self.assertEqual(["main"], branches)
 
     def test_stage_sections_are_not_hidden_in_production_markup(self):
         index = read_text("index.html")
