@@ -639,12 +639,20 @@ function scheduleRemainingHeroModels() {
     }
 }
 
+function restoreHeroCanvasAfterStaticFallback() {
+    canvasWrap.classList.remove('has-static-fallback');
+    canvas.classList.remove('visually-hidden');
+    canvas.removeAttribute('aria-hidden');
+    canvasWrap.querySelector('.hero-static-fallback')?.remove();
+}
+
 function onHeroModelLoaded(index) {
     if (!heroLayoutInitialized) {
         if (index !== HERO_DEFAULT_FACET_INDEX) return;
         layoutHeroSingleCubikMode();
         setupHeroFacetPicker();
         heroLayoutInitialized = true;
+        restoreHeroCanvasAfterStaticFallback();
         loaderEl?.classList.add('hidden');
         scheduleRemainingHeroModels();
     } else if (heroTiltGroup && loadedModels[index]) {
@@ -4811,7 +4819,6 @@ scheduleHeavySectionInit('assembly', initAssemblyViewer);
             status.textContent =
                 'If your mail program did not open automatically, write to hello@cubik.one with the same details.';
         }
-        form.reset();
     });
 })();
 
